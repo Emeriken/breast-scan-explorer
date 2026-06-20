@@ -87,8 +87,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Lovable App" },
       { name: "twitter:description", content: "Webbplats för att utforska AI-bedömda bröstcancerartiklar med filtrering och sökning." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d9a1648d-6dc5-4139-bc6a-aadc40cd4048/id-preview-fb09e720--14210cd1-f78d-4d6d-b519-e4225455945e.lovable.app-1781955108838.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d9a1648d-6dc5-4139-bc6a-aadc40cd4048/id-preview-fb09e720--14210cd1-f78d-4d6d-b519-e4225455945e.lovable.app-1781955108838.png" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0acad175-0e97-4c90-8e74-5d4599b470fa/id-preview-6a16d63a--14210cd1-f78d-4d6d-b519-e4225455945e.lovable.app-1781956582661.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0acad175-0e97-4c90-8e74-5d4599b470fa/id-preview-6a16d63a--14210cd1-f78d-4d6d-b519-e4225455945e.lovable.app-1781956582661.png" },
     ],
     links: [
       {
