@@ -126,7 +126,7 @@ function ManadensArtikel() {
   const treatment = (search.treatment ?? defaultTreatment) as TreatmentKey;
 
   const setSearch = (next: Partial<typeof search>) =>
-    navigate({ search: (prev) => ({ ...prev, ...next }) });
+    navigate({ search: (prev: typeof search) => ({ ...prev, ...next }) });
 
   const treatmentDef = TREATMENTS.find((t) => t.key === treatment)!;
 
