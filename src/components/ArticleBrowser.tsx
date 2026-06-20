@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Search, Star, ExternalLink, RefreshCw, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -492,6 +492,3 @@ export function ArticleBrowser() {
     </div>
   );
 }
-
-// Avoid unused import warning
-void useEffect;
