@@ -18,18 +18,19 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { NavTabs } from "@/components/NavTabs";
 
-const DATA_URL =
+export const DATA_URL =
   "https://raw.githubusercontent.com/Emeriken/brostcancer-publik/main/public-index.json";
 
-type DeepAnalysis = {
+export type DeepAnalysis = {
   central_finding?: string;
   limitation?: string;
   vs_standard?: string;
   applicability?: string;
 } | null;
 
-type Article = {
+export type Article = {
   title: string;
   journal: string;
   pub_date: string;
@@ -44,7 +45,7 @@ type Article = {
   scored_at: string;
 };
 
-type ApiResponse = {
+export type ApiResponse = {
   updated?: string;
   article_count?: number;
   journals_tracked?: number;
@@ -54,13 +55,13 @@ type ApiResponse = {
 
 type SortKey = "scored_at" | "pub_date" | "score" | "journal";
 
-async function fetchArticles(): Promise<ApiResponse> {
+export async function fetchArticles(): Promise<ApiResponse> {
   const res = await fetch(DATA_URL, { cache: "no-store" });
   if (!res.ok) throw new Error(`Kunde inte hämta data (HTTP ${res.status})`);
   return res.json();
 }
 
-function formatDate(iso?: string) {
+export function formatDate(iso?: string) {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
@@ -71,13 +72,13 @@ function formatDate(iso?: string) {
   });
 }
 
-function categoryHue(cat: string) {
+export function categoryHue(cat: string) {
   let h = 0;
   for (let i = 0; i < cat.length; i++) h = (h * 31 + cat.charCodeAt(i)) % 360;
   return h;
 }
 
-function CategoryTag({ category }: { category: string }) {
+export function CategoryTag({ category }: { category: string }) {
   const hue = categoryHue(category);
   return (
     <span
@@ -92,7 +93,7 @@ function CategoryTag({ category }: { category: string }) {
   );
 }
 
-function Stars({ score }: { score: number }) {
+export function Stars({ score }: { score: number }) {
   const n = Math.max(0, Math.min(5, Math.round(score)));
   return (
     <div className="flex items-center gap-0.5" aria-label={`Relevans ${n} av 5`}>
@@ -344,6 +345,9 @@ export function ArticleBrowser() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card/50 backdrop-blur">
         <div className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
+          <div className="mb-4">
+            <NavTabs />
+          </div>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="min-w-0">
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
