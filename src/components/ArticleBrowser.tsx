@@ -18,6 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { NavTabs } from "@/components/NavTabs";
 
 export const DATA_URL =
   "https://raw.githubusercontent.com/Emeriken/brostcancer-publik/main/public-index.json";
@@ -344,6 +345,9 @@ export function ArticleBrowser() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card/50 backdrop-blur">
         <div className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
+          <div className="mb-4">
+            <NavTabs />
+          </div>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="min-w-0">
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
