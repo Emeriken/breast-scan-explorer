@@ -1,6 +1,15 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Search, Star, ExternalLink, RefreshCw, Filter } from "lucide-react";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import {
+  ChevronDown,
+  Search,
+  Star,
+  ExternalLink,
+  RefreshCw,
+  Filter,
+  X,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,9 +26,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { NavTabs } from "@/components/NavTabs";
 import { categoryColor, externalLinkProps } from "@/lib/categories";
+import { Highlight } from "@/components/Highlight";
+import { JournalBadge } from "@/components/JournalBadge";
+import { MeshTags } from "@/components/MeshTags";
+import { pmidFromUrl } from "@/lib/journals";
+import { DisclaimerFooter } from "@/components/Footer";
 
 export const DATA_URL =
   "https://raw.githubusercontent.com/Emeriken/brostcancer-publik/main/public-index.json";
@@ -202,7 +221,7 @@ function QuickFilterButton({
   );
 }
 
-function ArticleCard({ article }: { article: Article }) {
+function ArticleCard({ article, query }: { article: Article; query: string }) {
   const [open, setOpen] = useState(false);
   const da = article.deep_analysis;
   const hasDeep =
@@ -212,6 +231,8 @@ function ArticleCard({ article }: { article: Article }) {
   const authors = Array.isArray(article.authors)
     ? article.authors.join(", ")
     : article.authors;
+
+  const pmid = pmidFromUrl(article.url);
 
   return (
     <article className="rounded-xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md">
@@ -227,26 +248,40 @@ function ArticleCard({ article }: { article: Article }) {
         </div>
 
         <h2 className="text-base font-semibold leading-snug sm:text-lg">
-          <a
-            href={article.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-foreground hover:text-primary hover:underline"
-          >
-            {article.title}
-            <ExternalLink className="ml-1 inline h-3.5 w-3.5 align-baseline opacity-60" />
-          </a>
+          {pmid ? (
+            <Link
+              to="/article/$pmid"
+              params={{ pmid }}
+              className="text-foreground hover:text-primary hover:underline"
+            >
+              <Highlight text={article.title} query={query} />
+            </Link>
+          ) : (
+            <a
+              href={article.url}
+              {...externalLinkProps}
+              className="text-foreground hover:text-primary hover:underline"
+            >
+              <Highlight text={article.title} query={query} />
+              <ExternalLink className="ml-1 inline h-3.5 w-3.5 align-baseline opacity-60" />
+            </a>
+          )}
         </h2>
 
         <div className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground/80">{article.journal}</span>
-          {authors && <span className="block text-xs mt-0.5 line-clamp-1">{authors}</span>}
+          <span className="font-medium text-foreground/80">
+            <Highlight text={article.journal} query={query} />
+          </span>
+          <JournalBadge journal={article.journal} />
+          {authors && (
+            <span className="block text-xs mt-0.5 line-clamp-1">{authors}</span>
+          )}
         </div>
 
         {article.why_relevant && (
           <p className="rounded-lg bg-muted/60 p-3 text-sm text-foreground/80">
             <span className="font-semibold text-foreground">Motivering: </span>
-            {article.why_relevant}
+            <Highlight text={article.why_relevant} query={query} />
           </p>
         )}
 
@@ -263,40 +298,50 @@ function ArticleCard({ article }: { article: Article }) {
               {open ? "Dölj djupanalys" : "Visa djupanalys"}
             </button>
             {open && (
-              <dl className="mt-3 grid gap-3 rounded-lg border border-dashed bg-background p-4 text-sm sm:grid-cols-2">
-                {da?.central_finding && (
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Centralt fynd
-                    </dt>
-                    <dd className="mt-1">{da.central_finding}</dd>
+              <>
+                <dl className="mt-3 grid gap-3 rounded-lg border border-dashed bg-background p-4 text-sm sm:grid-cols-2">
+                  {da?.central_finding && (
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Centralt fynd
+                      </dt>
+                      <dd className="mt-1">{da.central_finding}</dd>
+                    </div>
+                  )}
+                  {da?.limitation && (
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Begränsning
+                      </dt>
+                      <dd className="mt-1">{da.limitation}</dd>
+                    </div>
+                  )}
+                  {da?.vs_standard && (
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Jämfört med standard
+                      </dt>
+                      <dd className="mt-1">{da.vs_standard}</dd>
+                    </div>
+                  )}
+                  {da?.applicability && (
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Tillämpbarhet
+                      </dt>
+                      <dd className="mt-1">{da.applicability}</dd>
+                    </div>
+                  )}
+                </dl>
+                {article.mesh_terms && article.mesh_terms.length > 0 && (
+                  <div className="mt-3">
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      MeSH-termer
+                    </p>
+                    <MeshTags terms={article.mesh_terms} />
                   </div>
                 )}
-                {da?.limitation && (
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Begränsning
-                    </dt>
-                    <dd className="mt-1">{da.limitation}</dd>
-                  </div>
-                )}
-                {da?.vs_standard && (
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Jämfört med standard
-                    </dt>
-                    <dd className="mt-1">{da.vs_standard}</dd>
-                  </div>
-                )}
-                {da?.applicability && (
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Tillämpbarhet
-                    </dt>
-                    <dd className="mt-1">{da.applicability}</dd>
-                  </div>
-                )}
-              </dl>
+              </>
             )}
           </div>
         )}
@@ -318,6 +363,8 @@ function ArticleCard({ article }: { article: Article }) {
   );
 }
 
+type QuickFilter = "score5" | "score4plus" | "thisMonth" | "last30";
+
 export function ArticleBrowser() {
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["articles"],
@@ -325,13 +372,18 @@ export function ArticleBrowser() {
     staleTime: 60_000,
   });
 
+  const search = useSearch({ from: "/" }) as { mesh?: string };
+  const navigate = useNavigate({ from: "/" });
+  const meshFilter = search.mesh ?? "";
+
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("scored_at");
   const [cats, setCats] = useState<Set<string>>(new Set());
   const [journals, setJournals] = useState<Set<string>>(new Set());
   const [scores, setScores] = useState<Set<string>>(new Set());
-  type QuickFilter = "score5" | "score4plus" | "thisMonth" | "last30";
   const [quick, setQuick] = useState<Set<QuickFilter>>(new Set());
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   const toggleQuick = (q: QuickFilter) => {
     const next = new Set(quick);
     if (next.has(q)) next.delete(q);
@@ -356,6 +408,7 @@ export function ArticleBrowser() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
     const last30 = now.getTime() - 30 * 24 * 60 * 60 * 1000;
+    const meshLower = meshFilter.toLowerCase();
     let list = articles.filter((a) => {
       if (cats.size > 0 && !cats.has(a.category)) return false;
       if (journals.size > 0 && !journals.has(a.journal)) return false;
@@ -367,6 +420,12 @@ export function ArticleBrowser() {
         if (isNaN(t)) return false;
         if (quick.has("thisMonth") && t < startOfMonth) return false;
         if (quick.has("last30") && t < last30) return false;
+      }
+      if (meshLower) {
+        const terms = (a.mesh_terms ?? []).map((t) =>
+          t.replace(/\*$/, "").trim().toLowerCase(),
+        );
+        if (!terms.includes(meshLower)) return false;
       }
       if (q) {
         const hay = `${a.title} ${a.why_relevant} ${a.journal}`.toLowerCase();
@@ -388,17 +447,80 @@ export function ArticleBrowser() {
       }
     });
     return list;
-  }, [articles, query, sort, cats, journals, scores, quick]);
+  }, [articles, query, sort, cats, journals, scores, quick, meshFilter]);
 
+  // Detailed filters (the ones inside the collapsible)
+  const detailedCount = cats.size + journals.size + scores.size;
   const activeFilters =
-    cats.size + journals.size + scores.size + quick.size + (query ? 1 : 0);
+    detailedCount + quick.size + (query ? 1 : 0) + (meshFilter ? 1 : 0);
+
+  const clearMesh = () =>
+    navigate({ search: (prev: { mesh?: string }) => ({ ...prev, mesh: undefined }) });
+
   const resetAll = () => {
     setCats(new Set());
     setJournals(new Set());
     setScores(new Set());
     setQuick(new Set());
     setQuery("");
+    clearMesh();
   };
+
+  // Descriptors for the empty-state suggestions
+  type Descriptor = { label: string; onClear: () => void };
+  const activeDescriptors: Descriptor[] = [];
+  if (query)
+    activeDescriptors.push({
+      label: `Sök: "${query}"`,
+      onClear: () => setQuery(""),
+    });
+  if (meshFilter)
+    activeDescriptors.push({
+      label: `MeSH: ${meshFilter}`,
+      onClear: clearMesh,
+    });
+  cats.forEach((c) =>
+    activeDescriptors.push({
+      label: `Kategori: ${c}`,
+      onClear: () => {
+        const next = new Set(cats);
+        next.delete(c);
+        setCats(next);
+      },
+    }),
+  );
+  journals.forEach((j) =>
+    activeDescriptors.push({
+      label: `Tidskrift: ${j}`,
+      onClear: () => {
+        const next = new Set(journals);
+        next.delete(j);
+        setJournals(next);
+      },
+    }),
+  );
+  scores.forEach((s) =>
+    activeDescriptors.push({
+      label: `Poäng: ${s}`,
+      onClear: () => {
+        const next = new Set(scores);
+        next.delete(s);
+        setScores(next);
+      },
+    }),
+  );
+  quick.forEach((q) => {
+    const labels: Record<QuickFilter, string> = {
+      score5: "Bara 5-poängare",
+      score4plus: "Bara 4–5-poängare",
+      thisMonth: "Denna månad",
+      last30: "Senaste 30 dagarna",
+    };
+    activeDescriptors.push({
+      label: labels[q],
+      onClear: () => toggleQuick(q),
+    });
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -448,53 +570,92 @@ export function ArticleBrowser() {
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                id="article-search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Sök i titel, motivering eller tidskrift…"
+                placeholder="Sök i titel, motivering eller tidskrift… (Tryck / för att söka)"
                 className="pl-9"
               />
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-              <MultiSelect
-                label="Kategori"
-                options={allCategories}
-                selected={cats}
-                onChange={setCats}
-              />
-              <MultiSelect
-                label="Tidskrift"
-                options={allJournals}
-                selected={journals}
-                onChange={setJournals}
-              />
-              <MultiSelect
-                label="Poäng"
-                options={allScores}
-                selected={scores}
-                onChange={setScores}
-              />
-              <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-                <SelectTrigger className="min-w-0">
-                  <SelectValue placeholder="Sortering" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="scored_at">Senast bedömd</SelectItem>
-                  <SelectItem value="pub_date">Publiceringsdatum</SelectItem>
-                  <SelectItem value="score">Högsta poäng</SelectItem>
-                  <SelectItem value="journal">Tidskrift (A–Ö)</SelectItem>
-                </SelectContent>
-              </Select>
-              {activeFilters > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="col-span-2 sm:col-span-1"
-                  onClick={resetAll}
+
+            {meshFilter && (
+              <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs">
+                <span>
+                  Filtrerar på MeSH-term:{" "}
+                  <strong className="font-semibold">{meshFilter}</strong>
+                </span>
+                <button
+                  onClick={clearMesh}
+                  className="ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 hover:bg-muted"
+                  aria-label="Rensa MeSH-filter"
                 >
-                  Rensa filter ({activeFilters})
-                </Button>
-              )}
-            </div>
+                  <X className="h-3 w-3" /> Rensa
+                </button>
+              </div>
+            )}
+
+            <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+              <div className="flex flex-wrap items-center gap-2">
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Filter className="h-4 w-4" />
+                    Filter
+                    {detailedCount > 0 && (
+                      <Badge variant="secondary">{detailedCount}</Badge>
+                    )}
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 transition-transform",
+                        filtersOpen && "rotate-180",
+                      )}
+                    />
+                  </Button>
+                </CollapsibleTrigger>
+                <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+                  <SelectTrigger className="h-9 min-w-0 max-w-[200px]">
+                    <SelectValue placeholder="Sortering" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="scored_at">Senast bedömd</SelectItem>
+                    <SelectItem value="pub_date">Publiceringsdatum</SelectItem>
+                    <SelectItem value="score">Högsta poäng</SelectItem>
+                    <SelectItem value="journal">Tidskrift (A–Ö)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {activeFilters > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetAll}
+                    className="ml-auto"
+                  >
+                    Rensa filter ({activeFilters})
+                  </Button>
+                )}
+              </div>
+              <CollapsibleContent className="mt-3">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                  <MultiSelect
+                    label="Kategori"
+                    options={allCategories}
+                    selected={cats}
+                    onChange={setCats}
+                  />
+                  <MultiSelect
+                    label="Tidskrift"
+                    options={allJournals}
+                    selected={journals}
+                    onChange={setJournals}
+                  />
+                  <MultiSelect
+                    label="Poäng"
+                    options={allScores}
+                    selected={scores}
+                    onChange={setScores}
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         </div>
 
@@ -564,24 +725,48 @@ export function ArticleBrowser() {
         )}
 
         {!isLoading && !error && filtered.length === 0 && (
-          <div className="rounded-xl border border-dashed p-10 text-center">
-            <p className="font-medium">Inga artiklar matchade dina filter.</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Prova att rensa filter eller bredda sökningen.
-            </p>
+          <div className="rounded-xl border border-dashed p-6 sm:p-8">
+            <p className="font-medium">Inga artiklar matchar dina filter.</p>
+            {activeDescriptors.length > 0 ? (
+              <>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Prova att slå av:
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {activeDescriptors.map((d, i) => (
+                    <button
+                      key={i}
+                      onClick={d.onClear}
+                      className="inline-flex items-center gap-1 rounded-full border border-input bg-background px-3 py-1 text-xs hover:bg-muted"
+                    >
+                      <X className="h-3 w-3" />
+                      {d.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={resetAll}
+                    className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary hover:bg-primary/20"
+                  >
+                    Återställ alla
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">
+                Inga artiklar i datakällan ännu.
+              </p>
+            )}
           </div>
         )}
 
         <div className="space-y-4">
           {filtered.map((a, i) => (
-            <ArticleCard key={`${a.url}-${i}`} article={a} />
+            <ArticleCard key={`${a.url}-${i}`} article={a} query={query} />
           ))}
         </div>
-
-        <footer className="mt-12 pb-8 text-center text-xs text-muted-foreground">
-          Data från publik JSON-feed · Bedömningar genererade av AI
-        </footer>
       </main>
+
+      <DisclaimerFooter />
     </div>
   );
 }

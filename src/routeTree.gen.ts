@@ -13,6 +13,7 @@ import { Route as StatistikRouteImport } from './routes/statistik'
 import { Route as ManadensArtikelRouteImport } from './routes/manadens-artikel'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiFeedRouteImport } from './routes/api/feed'
+import { Route as ArticleRouteImport } from './routes/article.'
 
 const StatistikRoute = StatistikRouteImport.update({
   id: '/statistik',
@@ -34,17 +35,24 @@ const ApiFeedRoute = ApiFeedRouteImport.update({
   path: '/api/feed',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ArticleRoute = ArticleRouteImport.update({
+  id: '/article/',
+  path: '/article/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/manadens-artikel': typeof ManadensArtikelRoute
   '/statistik': typeof StatistikRoute
+  '/article/': typeof ArticleRoute
   '/api/feed': typeof ApiFeedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/manadens-artikel': typeof ManadensArtikelRoute
   '/statistik': typeof StatistikRoute
+  '/article': typeof ArticleRoute
   '/api/feed': typeof ApiFeedRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,33 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/manadens-artikel': typeof ManadensArtikelRoute
   '/statistik': typeof StatistikRoute
+  '/article/': typeof ArticleRoute
   '/api/feed': typeof ApiFeedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/manadens-artikel' | '/statistik' | '/api/feed'
+  fullPaths:
+    | '/'
+    | '/manadens-artikel'
+    | '/statistik'
+    | '/article/'
+    | '/api/feed'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/manadens-artikel' | '/statistik' | '/api/feed'
-  id: '__root__' | '/' | '/manadens-artikel' | '/statistik' | '/api/feed'
+  to: '/' | '/manadens-artikel' | '/statistik' | '/article' | '/api/feed'
+  id:
+    | '__root__'
+    | '/'
+    | '/manadens-artikel'
+    | '/statistik'
+    | '/article/'
+    | '/api/feed'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ManadensArtikelRoute: typeof ManadensArtikelRoute
   StatistikRoute: typeof StatistikRoute
+  ArticleRoute: typeof ArticleRoute
   ApiFeedRoute: typeof ApiFeedRoute
 }
 
@@ -99,6 +120,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFeedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/article/': {
+      id: '/article/'
+      path: '/article'
+      fullPath: '/article/'
+      preLoaderRoute: typeof ArticleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -106,6 +134,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ManadensArtikelRoute: ManadensArtikelRoute,
   StatistikRoute: StatistikRoute,
+  ArticleRoute: ArticleRoute,
   ApiFeedRoute: ApiFeedRoute,
 }
 export const routeTree = rootRouteImport

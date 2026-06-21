@@ -16,6 +16,7 @@ import {
 import { NavTabs } from "@/components/NavTabs";
 import { fetchArticles, formatDate } from "@/components/ArticleBrowser";
 import { categoryColor } from "@/lib/categories";
+import { DisclaimerFooter } from "@/components/Footer";
 
 export const Route = createFileRoute("/statistik")({
   head: () => ({
@@ -206,6 +207,7 @@ function StatistikPage() {
           </>
         )}
       </main>
+      <DisclaimerFooter />
     </div>
   );
 }
