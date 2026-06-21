@@ -454,18 +454,48 @@ export function ArticleBrowser() {
                   variant="ghost"
                   size="sm"
                   className="col-span-2 sm:col-span-1"
-                  onClick={() => {
-                    setCats(new Set());
-                    setJournals(new Set());
-                    setScores(new Set());
-                    setQuery("");
-                  }}
+                  onClick={resetAll}
                 >
                   Rensa filter ({activeFilters})
                 </Button>
               )}
             </div>
           </div>
+        </div>
+
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <QuickFilterButton
+            active={quick.has("score5")}
+            onClick={() => toggleQuick("score5")}
+          >
+            Bara 5-poängare
+          </QuickFilterButton>
+          <QuickFilterButton
+            active={quick.has("score4plus")}
+            onClick={() => toggleQuick("score4plus")}
+          >
+            Bara 4–5-poängare
+          </QuickFilterButton>
+          <QuickFilterButton
+            active={quick.has("thisMonth")}
+            onClick={() => toggleQuick("thisMonth")}
+          >
+            Denna månad
+          </QuickFilterButton>
+          <QuickFilterButton
+            active={quick.has("last30")}
+            onClick={() => toggleQuick("last30")}
+          >
+            Senaste 30 dagarna
+          </QuickFilterButton>
+          {activeFilters > 0 && (
+            <button
+              onClick={resetAll}
+              className="ml-auto rounded-full border border-dashed border-input px-3 py-1 text-xs text-muted-foreground hover:bg-muted"
+            >
+              Återställ alla filter
+            </button>
+          )}
         </div>
 
         {isLoading && (
