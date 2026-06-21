@@ -455,7 +455,7 @@ export function ArticleBrowser() {
     detailedCount + quick.size + (query ? 1 : 0) + (meshFilter ? 1 : 0);
 
   const clearMesh = () =>
-    navigate({ search: (prev) => ({ ...prev, mesh: undefined }) });
+    navigate({ search: (prev: { mesh?: string }) => ({ ...prev, mesh: undefined }) });
 
   const resetAll = () => {
     setCats(new Set());
