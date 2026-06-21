@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { NavTabs } from "@/components/NavTabs";
+import { categoryColor, externalLinkProps } from "@/lib/categories";
 
 export const DATA_URL =
   "https://raw.githubusercontent.com/Emeriken/brostcancer-publik/main/public-index.json";
@@ -72,22 +73,18 @@ export function formatDate(iso?: string) {
   });
 }
 
-export function categoryHue(cat: string) {
-  let h = 0;
-  for (let i = 0; i < cat.length; i++) h = (h * 31 + cat.charCodeAt(i)) % 360;
-  return h;
-}
-
 export function CategoryTag({ category }: { category: string }) {
-  const hue = categoryHue(category);
+  const c = categoryColor(category);
   return (
     <span
       className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-      style={{
-        backgroundColor: `oklch(0.93 0.06 ${hue})`,
-        color: `oklch(0.32 0.12 ${hue})`,
-      }}
+      style={{ backgroundColor: c.bg, color: c.text }}
     >
+      <span
+        aria-hidden
+        className="mr-1.5 inline-block h-2 w-2 rounded-full"
+        style={{ backgroundColor: c.solid }}
+      />
       {category}
     </span>
   );
