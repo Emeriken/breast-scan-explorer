@@ -176,6 +176,32 @@ function MultiSelect({
   );
 }
 
+function QuickFilterButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+        active
+          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+          : "border-input bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+      aria-pressed={active}
+    >
+      {children}
+    </button>
+  );
+}
+
 function ArticleCard({ article }: { article: Article }) {
   const [open, setOpen] = useState(false);
   const da = article.deep_analysis;
