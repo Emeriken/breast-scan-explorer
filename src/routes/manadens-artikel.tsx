@@ -336,6 +336,7 @@ function ManadensArtikel() {
           )}
         </section>
       </main>
+      <DisclaimerFooter />
     </div>
   );
 }
@@ -344,6 +345,32 @@ function sortByScoreThenDate(a: Article, b: Article) {
   if (b.relevance_score !== a.relevance_score)
     return b.relevance_score - a.relevance_score;
   return (b.scored_at ?? "").localeCompare(a.scored_at ?? "");
+}
+
+function ArticleTitleLink({ article }: { article: Article }) {
+  const pmid = pmidFromUrl(article.url);
+  if (pmid) {
+    return (
+      <Link
+        to="/article/$pmid"
+        params={{ pmid }}
+        className="text-foreground hover:text-primary hover:underline"
+      >
+        {article.title}
+      </Link>
+    );
+  }
+  return (
+    <a
+      href={article.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-foreground hover:text-primary hover:underline"
+    >
+      {article.title}
+      <ExternalLink className="ml-1 inline h-3.5 w-3.5 align-baseline opacity-60" />
+    </a>
+  );
 }
 
 function CandidateCard({
