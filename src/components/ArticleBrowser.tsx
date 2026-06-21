@@ -302,7 +302,16 @@ function ArticleCard({ article }: { article: Article }) {
         )}
 
         {article.doi && (
-          <div className="text-xs text-muted-foreground">DOI: {article.doi}</div>
+          <div className="text-xs text-muted-foreground">
+            DOI:{" "}
+            <a
+              href={`https://doi.org/${article.doi}`}
+              {...externalLinkProps}
+              className="underline-offset-2 hover:underline"
+            >
+              {article.doi}
+            </a>
+          </div>
         )}
       </div>
     </article>
