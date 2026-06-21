@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Search, Star, ExternalLink, RefreshCw, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -183,7 +183,7 @@ function QuickFilterButton({
 }: {
   active: boolean;
   onClick: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <button
