@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Search, Star, ExternalLink, RefreshCw, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { NavTabs } from "@/components/NavTabs";
+import { categoryColor, externalLinkProps } from "@/lib/categories";
 
 export const DATA_URL =
   "https://raw.githubusercontent.com/Emeriken/brostcancer-publik/main/public-index.json";
@@ -72,22 +73,18 @@ export function formatDate(iso?: string) {
   });
 }
 
-export function categoryHue(cat: string) {
-  let h = 0;
-  for (let i = 0; i < cat.length; i++) h = (h * 31 + cat.charCodeAt(i)) % 360;
-  return h;
-}
-
 export function CategoryTag({ category }: { category: string }) {
-  const hue = categoryHue(category);
+  const c = categoryColor(category);
   return (
     <span
       className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-      style={{
-        backgroundColor: `oklch(0.93 0.06 ${hue})`,
-        color: `oklch(0.32 0.12 ${hue})`,
-      }}
+      style={{ backgroundColor: c.bg, color: c.text }}
     >
+      <span
+        aria-hidden
+        className="mr-1.5 inline-block h-2 w-2 rounded-full"
+        style={{ backgroundColor: c.solid }}
+      />
       {category}
     </span>
   );
@@ -176,6 +173,32 @@ function MultiSelect({
         )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+function QuickFilterButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+        active
+          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+          : "border-input bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+      aria-pressed={active}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -279,7 +302,16 @@ function ArticleCard({ article }: { article: Article }) {
         )}
 
         {article.doi && (
-          <div className="text-xs text-muted-foreground">DOI: {article.doi}</div>
+          <div className="text-xs text-muted-foreground">
+            DOI:{" "}
+            <a
+              href={`https://doi.org/${article.doi}`}
+              {...externalLinkProps}
+              className="underline-offset-2 hover:underline"
+            >
+              {article.doi}
+            </a>
+          </div>
         )}
       </div>
     </article>
@@ -298,6 +330,14 @@ export function ArticleBrowser() {
   const [cats, setCats] = useState<Set<string>>(new Set());
   const [journals, setJournals] = useState<Set<string>>(new Set());
   const [scores, setScores] = useState<Set<string>>(new Set());
+  type QuickFilter = "score5" | "score4plus" | "thisMonth" | "last30";
+  const [quick, setQuick] = useState<Set<QuickFilter>>(new Set());
+  const toggleQuick = (q: QuickFilter) => {
+    const next = new Set(quick);
+    if (next.has(q)) next.delete(q);
+    else next.add(q);
+    setQuick(next);
+  };
 
   const articles = data?.articles ?? [];
 
@@ -313,10 +353,21 @@ export function ArticleBrowser() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const last30 = now.getTime() - 30 * 24 * 60 * 60 * 1000;
     let list = articles.filter((a) => {
       if (cats.size > 0 && !cats.has(a.category)) return false;
       if (journals.size > 0 && !journals.has(a.journal)) return false;
       if (scores.size > 0 && !scores.has(String(Math.round(a.relevance_score)))) return false;
+      if (quick.has("score5") && Math.round(a.relevance_score) !== 5) return false;
+      if (quick.has("score4plus") && a.relevance_score < 4) return false;
+      if (quick.has("thisMonth") || quick.has("last30")) {
+        const t = a.scored_at ? new Date(a.scored_at).getTime() : NaN;
+        if (isNaN(t)) return false;
+        if (quick.has("thisMonth") && t < startOfMonth) return false;
+        if (quick.has("last30") && t < last30) return false;
+      }
       if (q) {
         const hay = `${a.title} ${a.why_relevant} ${a.journal}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -337,9 +388,17 @@ export function ArticleBrowser() {
       }
     });
     return list;
-  }, [articles, query, sort, cats, journals, scores]);
+  }, [articles, query, sort, cats, journals, scores, quick]);
 
-  const activeFilters = cats.size + journals.size + scores.size + (query ? 1 : 0);
+  const activeFilters =
+    cats.size + journals.size + scores.size + quick.size + (query ? 1 : 0);
+  const resetAll = () => {
+    setCats(new Set());
+    setJournals(new Set());
+    setScores(new Set());
+    setQuick(new Set());
+    setQuery("");
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -430,18 +489,48 @@ export function ArticleBrowser() {
                   variant="ghost"
                   size="sm"
                   className="col-span-2 sm:col-span-1"
-                  onClick={() => {
-                    setCats(new Set());
-                    setJournals(new Set());
-                    setScores(new Set());
-                    setQuery("");
-                  }}
+                  onClick={resetAll}
                 >
                   Rensa filter ({activeFilters})
                 </Button>
               )}
             </div>
           </div>
+        </div>
+
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <QuickFilterButton
+            active={quick.has("score5")}
+            onClick={() => toggleQuick("score5")}
+          >
+            Bara 5-poängare
+          </QuickFilterButton>
+          <QuickFilterButton
+            active={quick.has("score4plus")}
+            onClick={() => toggleQuick("score4plus")}
+          >
+            Bara 4–5-poängare
+          </QuickFilterButton>
+          <QuickFilterButton
+            active={quick.has("thisMonth")}
+            onClick={() => toggleQuick("thisMonth")}
+          >
+            Denna månad
+          </QuickFilterButton>
+          <QuickFilterButton
+            active={quick.has("last30")}
+            onClick={() => toggleQuick("last30")}
+          >
+            Senaste 30 dagarna
+          </QuickFilterButton>
+          {activeFilters > 0 && (
+            <button
+              onClick={resetAll}
+              className="ml-auto rounded-full border border-dashed border-input px-3 py-1 text-xs text-muted-foreground hover:bg-muted"
+            >
+              Återställ alla filter
+            </button>
+          )}
         </div>
 
         {isLoading && (
