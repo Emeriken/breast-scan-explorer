@@ -376,21 +376,14 @@ function CandidateCard({
         </div>
 
         <h3 className="text-base font-semibold leading-snug sm:text-lg">
-          <a
-            href={article.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-foreground hover:text-primary hover:underline"
-          >
-            {article.title}
-            <ExternalLink className="ml-1 inline h-3.5 w-3.5 align-baseline opacity-60" />
-          </a>
+          <ArticleTitleLink article={article} />
         </h3>
 
         <div className="text-sm text-muted-foreground">
           <span className="font-medium text-foreground/80">
             {article.journal}
           </span>
+          <JournalBadge journal={article.journal} />
         </div>
 
         {article.why_relevant && (
