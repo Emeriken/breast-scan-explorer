@@ -295,6 +295,14 @@ export function ArticleBrowser() {
   const [cats, setCats] = useState<Set<string>>(new Set());
   const [journals, setJournals] = useState<Set<string>>(new Set());
   const [scores, setScores] = useState<Set<string>>(new Set());
+  type QuickFilter = "score5" | "score4plus" | "thisMonth" | "last30";
+  const [quick, setQuick] = useState<Set<QuickFilter>>(new Set());
+  const toggleQuick = (q: QuickFilter) => {
+    const next = new Set(quick);
+    if (next.has(q)) next.delete(q);
+    else next.add(q);
+    setQuick(next);
+  };
 
   const articles = data?.articles ?? [];
 
@@ -310,10 +318,21 @@ export function ArticleBrowser() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const last30 = now.getTime() - 30 * 24 * 60 * 60 * 1000;
     let list = articles.filter((a) => {
       if (cats.size > 0 && !cats.has(a.category)) return false;
       if (journals.size > 0 && !journals.has(a.journal)) return false;
       if (scores.size > 0 && !scores.has(String(Math.round(a.relevance_score)))) return false;
+      if (quick.has("score5") && Math.round(a.relevance_score) !== 5) return false;
+      if (quick.has("score4plus") && a.relevance_score < 4) return false;
+      if (quick.has("thisMonth") || quick.has("last30")) {
+        const t = a.scored_at ? new Date(a.scored_at).getTime() : NaN;
+        if (isNaN(t)) return false;
+        if (quick.has("thisMonth") && t < startOfMonth) return false;
+        if (quick.has("last30") && t < last30) return false;
+      }
       if (q) {
         const hay = `${a.title} ${a.why_relevant} ${a.journal}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -334,9 +353,17 @@ export function ArticleBrowser() {
       }
     });
     return list;
-  }, [articles, query, sort, cats, journals, scores]);
+  }, [articles, query, sort, cats, journals, scores, quick]);
 
-  const activeFilters = cats.size + journals.size + scores.size + (query ? 1 : 0);
+  const activeFilters =
+    cats.size + journals.size + scores.size + quick.size + (query ? 1 : 0);
+  const resetAll = () => {
+    setCats(new Set());
+    setJournals(new Set());
+    setScores(new Set());
+    setQuick(new Set());
+    setQuery("");
+  };
 
   return (
     <div className="min-h-screen bg-background">
