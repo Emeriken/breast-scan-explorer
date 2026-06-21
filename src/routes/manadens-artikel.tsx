@@ -23,6 +23,10 @@ import {
   Stars,
   type Article,
 } from "@/components/ArticleBrowser";
+import { DisclaimerFooter } from "@/components/Footer";
+import { JournalBadge } from "@/components/JournalBadge";
+import { MeshTags } from "@/components/MeshTags";
+import { pmidFromUrl } from "@/lib/journals";
 
 type TreatmentKey = "cytotoxisk" | "endokrin" | "stralbehandling";
 
