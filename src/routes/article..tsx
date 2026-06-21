@@ -15,7 +15,7 @@ import {
 import { externalLinkProps } from "@/lib/categories";
 import { pmidFromUrl } from "@/lib/journals";
 
-export const Route = createFileRoute("/article/$pmid")({
+export const Route = createFileRoute("/article/")({
   head: () => ({
     meta: [
       { title: "Artikel — Bröstcancerartiklar" },
