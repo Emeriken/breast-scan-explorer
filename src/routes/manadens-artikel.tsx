@@ -435,7 +435,19 @@ function CandidateCard({
               />
               {open ? "Dölj djupanalys" : "Visa djupanalys"}
             </button>
-            {open && <DeepAnalysisGrid da={da!} />}
+            {open && (
+              <>
+                <DeepAnalysisGrid da={da!} />
+                {article.mesh_terms && article.mesh_terms.length > 0 && (
+                  <div className="mt-3">
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      MeSH-termer
+                    </p>
+                    <MeshTags terms={article.mesh_terms} />
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 
