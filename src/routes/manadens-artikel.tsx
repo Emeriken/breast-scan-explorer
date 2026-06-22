@@ -89,7 +89,7 @@ function parseScoredAt(iso: string): { y: number; m: number } | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (isNaN(d.getTime())) return null;
-  return { y: d.getFullYear(), m: d.getMonth() + 1 };
+  return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1 };
 }
 
 function shiftMonth(year: number, month: number, delta: number) {

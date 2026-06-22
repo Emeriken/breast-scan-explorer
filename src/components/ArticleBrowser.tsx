@@ -37,7 +37,8 @@ import { categoryColor, externalLinkProps } from "@/lib/categories";
 import { Highlight } from "@/components/Highlight";
 import { JournalBadge } from "@/components/JournalBadge";
 import { MeshTags } from "@/components/MeshTags";
-import { pmidFromUrl } from "@/lib/journals";
+import { pmidFromUrl, journalLevel } from "@/lib/journals";
+import { KiJlInfoTooltip } from "@/components/KiJlInfoTooltip";
 import { DisclaimerFooter } from "@/components/Footer";
 
 export const DATA_URL =
@@ -68,7 +69,7 @@ export type Article = {
 export type ApiResponse = {
   updated?: string;
   article_count?: number;
-  journals_tracked?: number;
+  journals_tracked?: string[] | number;
   categories?: string[];
   articles: Article[];
 };
@@ -131,11 +132,13 @@ function MultiSelect({
   options,
   selected,
   onChange,
+  trailing,
 }: {
   label: string;
   options: string[];
   selected: Set<string>;
   onChange: (s: Set<string>) => void;
+  trailing?: ReactNode;
 }) {
   const toggle = (v: string) => {
     const next = new Set(selected);
@@ -146,10 +149,11 @@ function MultiSelect({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="justify-between gap-2 min-w-0">
+        <Button variant="outline" className="justify-between gap-2 min-w-0 min-h-11">
           <span className="flex items-center gap-2 truncate">
             <Filter className="h-4 w-4 shrink-0" />
             <span className="truncate">{label}</span>
+            {trailing}
             {selected.size > 0 && (
               <Badge variant="secondary" className="ml-1">
                 {selected.size}
@@ -209,7 +213,7 @@ function QuickFilterButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+        "rounded-full border px-4 py-2 text-xs font-medium transition-colors min-h-9 sm:min-h-0",
         active
           ? "border-primary bg-primary text-primary-foreground shadow-sm"
           : "border-input bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -363,7 +367,7 @@ function ArticleCard({ article, query }: { article: Article; query: string }) {
   );
 }
 
-type QuickFilter = "score5" | "score4plus" | "thisMonth" | "last30";
+type QuickFilter = "score5" | "score4plus" | "thisMonth" | "last30" | "l3only";
 
 export function ArticleBrowser() {
   const { data, isLoading, error, refetch, isFetching } = useQuery({
@@ -381,6 +385,7 @@ export function ArticleBrowser() {
   const [cats, setCats] = useState<Set<string>>(new Set());
   const [journals, setJournals] = useState<Set<string>>(new Set());
   const [scores, setScores] = useState<Set<string>>(new Set());
+  const [levels, setLevels] = useState<Set<string>>(new Set());
   const [quick, setQuick] = useState<Set<QuickFilter>>(new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -402,6 +407,7 @@ export function ArticleBrowser() {
     [articles],
   );
   const allScores = ["5", "4", "3", "2", "1"];
+  const allLevels = ["L3", "L2", "L1"];
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -413,8 +419,14 @@ export function ArticleBrowser() {
       if (cats.size > 0 && !cats.has(a.category)) return false;
       if (journals.size > 0 && !journals.has(a.journal)) return false;
       if (scores.size > 0 && !scores.has(String(Math.round(a.relevance_score)))) return false;
+      if (levels.size > 0) {
+        const lvl = journalLevel(a.journal);
+        if (lvl === null) return false;
+        if (!levels.has(`L${lvl}`)) return false;
+      }
       if (quick.has("score5") && Math.round(a.relevance_score) !== 5) return false;
       if (quick.has("score4plus") && a.relevance_score < 4) return false;
+      if (quick.has("l3only") && journalLevel(a.journal) !== 3) return false;
       if (quick.has("thisMonth") || quick.has("last30")) {
         const t = a.scored_at ? new Date(a.scored_at).getTime() : NaN;
         if (isNaN(t)) return false;
@@ -447,10 +459,10 @@ export function ArticleBrowser() {
       }
     });
     return list;
-  }, [articles, query, sort, cats, journals, scores, quick, meshFilter]);
+  }, [articles, query, sort, cats, journals, scores, levels, quick, meshFilter]);
 
   // Detailed filters (the ones inside the collapsible)
-  const detailedCount = cats.size + journals.size + scores.size;
+  const detailedCount = cats.size + journals.size + scores.size + levels.size;
   const activeFilters =
     detailedCount + quick.size + (query ? 1 : 0) + (meshFilter ? 1 : 0);
 
@@ -461,6 +473,7 @@ export function ArticleBrowser() {
     setCats(new Set());
     setJournals(new Set());
     setScores(new Set());
+    setLevels(new Set());
     setQuick(new Set());
     setQuery("");
     clearMesh();
@@ -509,12 +522,23 @@ export function ArticleBrowser() {
       },
     }),
   );
+  levels.forEach((l) =>
+    activeDescriptors.push({
+      label: `KI-JL: ${l}`,
+      onClear: () => {
+        const next = new Set(levels);
+        next.delete(l);
+        setLevels(next);
+      },
+    }),
+  );
   quick.forEach((q) => {
     const labels: Record<QuickFilter, string> = {
       score5: "Bara 5-poängare",
       score4plus: "Bara 4–5-poängare",
       thisMonth: "Denna månad",
       last30: "Senaste 30 dagarna",
+      l3only: "Endast L3-tidskrifter",
     };
     activeDescriptors.push({
       label: labels[q],
@@ -535,7 +559,7 @@ export function ArticleBrowser() {
                 Bröstcancerartiklar
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                AI-bedömd översikt av ny forskning från ledande tidskrifter.
+                AI-driven litteraturöversikt · SÖS Onkologen
               </p>
             </div>
             <Button
@@ -557,8 +581,13 @@ export function ArticleBrowser() {
             {data?.updated && (
               <span>Senast uppdaterad: {formatDate(data.updated)}</span>
             )}
-            {typeof data?.journals_tracked === "number" && (
-              <span>{data.journals_tracked} tidskrifter bevakade</span>
+            {data?.journals_tracked && (
+              <span>
+                {Array.isArray(data.journals_tracked)
+                  ? data.journals_tracked.length
+                  : data.journals_tracked}{" "}
+                tidskrifter bevakade
+              </span>
             )}
           </div>
         </div>
@@ -653,6 +682,13 @@ export function ArticleBrowser() {
                     selected={scores}
                     onChange={setScores}
                   />
+                  <MultiSelect
+                    label="KI-JL-nivå"
+                    options={allLevels}
+                    selected={levels}
+                    onChange={setLevels}
+                    trailing={<KiJlInfoTooltip />}
+                  />
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -683,6 +719,12 @@ export function ArticleBrowser() {
             onClick={() => toggleQuick("last30")}
           >
             Senaste 30 dagarna
+          </QuickFilterButton>
+          <QuickFilterButton
+            active={quick.has("l3only")}
+            onClick={() => toggleQuick("l3only")}
+          >
+            Endast L3-tidskrifter
           </QuickFilterButton>
           {activeFilters > 0 && (
             <button
