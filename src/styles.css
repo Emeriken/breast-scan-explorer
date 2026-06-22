@@ -63,7 +63,7 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.99 0.005 340);
+  --background: oklch(0.985 0.004 80);
   --foreground: oklch(0.22 0.03 340);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.22 0.03 340);
@@ -140,5 +140,9 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    line-height: 1.6;
+    font-size: 15px;
   }
 }
