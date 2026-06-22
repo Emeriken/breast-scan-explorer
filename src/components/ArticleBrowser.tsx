@@ -38,6 +38,7 @@ import { Highlight } from "@/components/Highlight";
 import { JournalBadge } from "@/components/JournalBadge";
 import { MeshTags } from "@/components/MeshTags";
 import { pmidFromUrl, journalLevel } from "@/lib/journals";
+import { parsePubDate } from "@/lib/journals";
 import { KiJlInfoTooltip } from "@/components/KiJlInfoTooltip";
 import { DisclaimerFooter } from "@/components/Footer";
 
@@ -91,6 +92,25 @@ export function formatDate(iso?: string) {
     month: "short",
     day: "numeric",
   });
+}
+
+export function PubDateDisplay({ pubDate }: { pubDate?: string }) {
+  if (!pubDate) return null;
+  const ms = parsePubDate(pubDate);
+  const isFuture = ms > Date.now() + 30 * 24 * 60 * 60 * 1000;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span>{formatDate(pubDate) || pubDate}</span>
+      {isFuture && (
+        <span
+          className="rounded-sm bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+          title="Publiceringsdatum ligger i framtiden — sannolikt redan tillgänglig online som 'ahead of print'"
+        >
+          Ahead of print
+        </span>
+      )}
+    </span>
+  );
 }
 
 export function CategoryTag({ category }: { category: string }) {
@@ -247,7 +267,7 @@ function ArticleCard({ article, query }: { article: Article; query: string }) {
             <Stars score={article.relevance_score} />
           </div>
           <span className="text-xs text-muted-foreground">
-            {formatDate(article.pub_date)}
+            <PubDateDisplay pubDate={article.pub_date} />
           </span>
         </div>
 
@@ -381,7 +401,7 @@ export function ArticleBrowser() {
   const meshFilter = search.mesh ?? "";
 
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortKey>("scored_at");
+  const [sort, setSort] = useState<SortKey>("pub_date");
   const [cats, setCats] = useState<Set<string>>(new Set());
   const [journals, setJournals] = useState<Set<string>>(new Set());
   const [scores, setScores] = useState<Set<string>>(new Set());
@@ -450,12 +470,15 @@ export function ArticleBrowser() {
         case "score":
           return b.relevance_score - a.relevance_score;
         case "pub_date":
-          return (b.pub_date ?? "").localeCompare(a.pub_date ?? "");
+          return parsePubDate(b.pub_date) - parsePubDate(a.pub_date);
         case "journal":
           return a.journal.localeCompare(b.journal, "sv");
         case "scored_at":
-        default:
-          return (b.scored_at ?? "").localeCompare(a.scored_at ?? "");
+        default: {
+          const cmp = (b.scored_at ?? "").localeCompare(a.scored_at ?? "");
+          if (cmp !== 0) return cmp;
+          return parsePubDate(b.pub_date) - parsePubDate(a.pub_date);
+        }
       }
     });
     return list;
@@ -645,7 +668,7 @@ export function ArticleBrowser() {
                     <SelectValue placeholder="Sortering" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="scored_at">Senast bedömd</SelectItem>
+                    <SelectItem value="scored_at">Senast bedömd av AI</SelectItem>
                     <SelectItem value="pub_date">Publiceringsdatum</SelectItem>
                     <SelectItem value="score">Högsta poäng</SelectItem>
                     <SelectItem value="journal">Tidskrift (A–Ö)</SelectItem>
