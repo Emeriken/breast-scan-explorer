@@ -18,9 +18,9 @@ import { cn } from "@/lib/utils";
 import { NavTabs } from "@/components/NavTabs";
 import {
   fetchArticles,
-  formatDate,
   CategoryTag,
   Stars,
+  PubDateDisplay,
   type Article,
 } from "@/components/ArticleBrowser";
 import { DisclaimerFooter } from "@/components/Footer";
@@ -398,7 +398,7 @@ function CandidateCard({
             </Badge>
           </div>
           <span className="text-xs text-muted-foreground">
-            {formatDate(article.pub_date)}
+            <PubDateDisplay pubDate={article.pub_date} />
           </span>
         </div>
 
@@ -593,7 +593,7 @@ function PrepareView({
             <span className="font-medium text-foreground/80">
               {article.journal}
             </span>{" "}
-            · {formatDate(article.pub_date)}
+            · <PubDateDisplay pubDate={article.pub_date} />
             {article.doi && <span> · DOI: {article.doi}</span>}
           </p>
           {authors && (
