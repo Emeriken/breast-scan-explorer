@@ -15,7 +15,9 @@ import {
 } from "recharts";
 import { NavTabs } from "@/components/NavTabs";
 import { fetchArticles, formatDate } from "@/components/ArticleBrowser";
-import { categoryColor } from "@/lib/categories";
+import { categoryColor, CHART_COLORS } from "@/lib/categories";
+import { journalLevel } from "@/lib/journals";
+import { KiJlInfoTooltip } from "@/components/KiJlInfoTooltip";
 import { DisclaimerFooter } from "@/components/Footer";
 
 export const Route = createFileRoute("/statistik")({
@@ -82,8 +84,28 @@ function StatistikPage() {
     );
   }, [articles]);
 
-  const journalsTracked =
-    typeof data?.journals_tracked === "number"
+  const byLevel = useMemo(() => {
+    const counts: Record<1 | 2 | 3 | "unknown", number> = {
+      1: 0,
+      2: 0,
+      3: 0,
+      unknown: 0,
+    };
+    for (const a of articles) {
+      const lvl = journalLevel(a.journal);
+      if (lvl === 1 || lvl === 2 || lvl === 3) counts[lvl] += 1;
+      else counts.unknown += 1;
+    }
+    return [
+      { name: "L3", value: counts[3], fill: "#374151" },
+      { name: "L2", value: counts[2], fill: "#6B7280" },
+      { name: "L1", value: counts[1], fill: "#9CA3AF" },
+    ];
+  }, [articles]);
+
+  const journalsTracked = Array.isArray(data?.journals_tracked)
+    ? data!.journals_tracked.length
+    : typeof data?.journals_tracked === "number"
       ? data.journals_tracked
       : new Set(articles.map((a) => a.journal).filter(Boolean)).size;
 
@@ -164,7 +186,7 @@ function StatistikPage() {
                     <XAxis dataKey="score" />
                     <YAxis allowDecimals={false} />
                     <Tooltip />
-                    <Bar dataKey="value" fill="#2563EB" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="value" fill={CHART_COLORS.score} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -181,10 +203,32 @@ function StatistikPage() {
                       tick={{ fontSize: 11 }}
                     />
                     <Tooltip />
-                    <Bar dataKey="value" fill="#7C3AED" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="value" fill={CHART_COLORS.journals} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
+            </div>
+
+            <div className="rounded-xl border bg-card p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-2">
+                <h2 className="text-base font-semibold">
+                  Artiklar per KI-JL-nivå
+                </h2>
+                <KiJlInfoTooltip />
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={byLevel} layout="vertical" margin={{ left: 20, right: 40 }}>
+                  <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                  <XAxis type="number" allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" width={40} tick={{ fontSize: 12 }} />
+                  <Tooltip />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]} label={{ position: "right", fontSize: 12 }}>
+                    {byLevel.map((d, i) => (
+                      <Cell key={i} fill={d.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
 
             <ChartCard title="Artiklar per månad (bedömda)">
@@ -197,7 +241,7 @@ function StatistikPage() {
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke="#EA580C"
+                    stroke={CHART_COLORS.timeline}
                     strokeWidth={2}
                     dot={{ r: 3 }}
                   />
