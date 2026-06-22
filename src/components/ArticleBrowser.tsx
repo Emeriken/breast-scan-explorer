@@ -37,8 +37,7 @@ import { categoryColor, externalLinkProps } from "@/lib/categories";
 import { Highlight } from "@/components/Highlight";
 import { JournalBadge } from "@/components/JournalBadge";
 import { MeshTags } from "@/components/MeshTags";
-import { pmidFromUrl, journalLevel } from "@/lib/journals";
-import { parsePubDate } from "@/lib/journals";
+import { pmidFromUrl, journalLevel, parsePubDate } from "@/lib/journals";
 import { KiJlInfoTooltip } from "@/components/KiJlInfoTooltip";
 import { DisclaimerFooter } from "@/components/Footer";
 
