@@ -25,3 +25,14 @@ export function pmidFromUrl(url: string | undefined | null): string | null {
   const m = url.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
   return m ? m[1] : null;
 }
+
+/**
+ * Tolka en PubMed-stil datumsträng (t.ex. "2026 May 20", "2026 Jun" eller
+ * "2026") till en sorterbar timestamp. Returnerar 0 om strängen är tom eller
+ * inte kan tolkas — då sorteras artikeln sist.
+ */
+export function parsePubDate(s: string | undefined | null): number {
+  if (!s) return 0;
+  const ms = Date.parse(s);
+  return isNaN(ms) ? 0 : ms;
+}

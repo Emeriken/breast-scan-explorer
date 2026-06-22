@@ -8,9 +8,9 @@ import { JournalBadge } from "@/components/JournalBadge";
 import { MeshTags } from "@/components/MeshTags";
 import {
   fetchArticles,
-  formatDate,
   CategoryTag,
   Stars,
+  PubDateDisplay,
 } from "@/components/ArticleBrowser";
 import { externalLinkProps } from "@/lib/categories";
 import { pmidFromUrl } from "@/lib/journals";
@@ -93,7 +93,7 @@ function ArticleDetail() {
                 {article.journal}
               </span>
               <JournalBadge journal={article.journal} />
-              <span> · {formatDate(article.pub_date)}</span>
+              <span> · <PubDateDisplay pubDate={article.pub_date} /></span>
             </p>
             {authors && (
               <p className="mt-1 text-xs text-muted-foreground">{authors}</p>
