@@ -35,7 +35,11 @@ function pmidFromUrl(url: string): string | null {
   return m ? m[1] : null;
 }
 
-function buildFeed(articles: Article[], updated?: string): string {
+function buildFeed(
+  articles: Article[],
+  updated: string | undefined,
+  baseUrl: string,
+): string {
   const items = articles
     .slice()
     .sort((a, b) => (b.scored_at ?? "").localeCompare(a.scored_at ?? ""))
@@ -61,7 +65,7 @@ function buildFeed(articles: Article[], updated?: string): string {
 <rss version="2.0">
   <channel>
     <title>Bröstcancer-bevakning</title>
-    <link>https://breast-scan-explorer.lovable.app/</link>
+    <link>${escapeXml(baseUrl)}/</link>
     <description>AI-bedömda bröstcancerartiklar från ledande tidskrifter.</description>
     <language>sv</language>
     <lastBuildDate>${toRfc822(updated ?? new Date().toISOString())}</lastBuildDate>
@@ -73,7 +77,8 @@ ${items}
 export const Route = createFileRoute("/api/feed")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        const baseUrl = new URL(request.url).origin;
         try {
           const res = await fetch(DATA_URL, { cache: "no-store" });
           if (!res.ok) {
@@ -83,7 +88,7 @@ export const Route = createFileRoute("/api/feed")({
             articles?: Article[];
             updated?: string;
           };
-          const xml = buildFeed(data.articles ?? [], data.updated);
+          const xml = buildFeed(data.articles ?? [], data.updated, baseUrl);
           return new Response(xml, {
             status: 200,
             headers: {
