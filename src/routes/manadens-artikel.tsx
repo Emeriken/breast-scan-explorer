@@ -143,6 +143,19 @@ function ManadensArtikel() {
     });
   }, [articles, year, month, treatmentDef]);
 
+  // Toppartiklar (4–5p) från andra behandlingsområden samma månad
+  const otherTopArticles = useMemo(() => {
+    return articles
+      .filter((a) => {
+        const p = parseScoredAt(a.scored_at);
+        if (!p) return false;
+        if (p.y !== year || p.m !== month) return false;
+        if (treatmentDef.match.test(a.category || "")) return false;
+        return a.relevance_score >= 4;
+      })
+      .sort(sortByScoreThenDate);
+  }, [articles, year, month, treatmentDef]);
+
   const top = monthCandidates
     .filter((a) => a.relevance_score >= 4)
     .sort(sortByScoreThenDate);
@@ -335,6 +348,33 @@ function ManadensArtikel() {
             </>
           )}
         </section>
+
+        {!isLoading && !error && otherTopArticles.length > 0 && (
+          <section className="mt-8 border-t pt-8">
+            <div className="mb-3">
+              <h2 className="text-lg font-semibold">
+                Övriga toppartiklar denna månad
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  ({otherTopArticles.length})
+                </span>
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                4–5-poängare från andra behandlingsområden i{" "}
+                {MONTHS_SV[month - 1]} {year}. Värdefulla att lyfta om inget
+                toppmaterial finns i ditt eget område.
+              </p>
+            </div>
+            <div className="space-y-4">
+              {otherTopArticles.map((a, i) => (
+                <CandidateCard
+                  key={`other-${a.url}-${i}`}
+                  article={a}
+                  onPrepare={() => setSearch({ prepare: a.url })}
+                />
+              ))}
+            </div>
+          </section>
+        )}
       </main>
       <DisclaimerFooter />
     </div>

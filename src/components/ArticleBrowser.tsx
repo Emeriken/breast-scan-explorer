@@ -297,7 +297,9 @@ function ArticleCard({ article, query }: { article: Article; query: string }) {
           </span>
           <JournalBadge journal={article.journal} />
           {authors && (
-            <span className="block text-xs mt-0.5 line-clamp-1">{authors}</span>
+            <span className="block text-xs mt-0.5 line-clamp-1">
+              <Highlight text={authors} query={query} />
+            </span>
           )}
         </div>
 
@@ -459,7 +461,11 @@ export function ArticleBrowser() {
         if (!terms.includes(meshLower)) return false;
       }
       if (q) {
-        const hay = `${a.title} ${a.why_relevant} ${a.journal}`.toLowerCase();
+        const authorsStr = Array.isArray(a.authors)
+          ? a.authors.join(" ")
+          : (a.authors ?? "");
+        const hay =
+          `${a.title} ${a.why_relevant} ${a.journal} ${authorsStr}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -624,7 +630,7 @@ export function ArticleBrowser() {
                 id="article-search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Sök i titel, motivering eller tidskrift… (Tryck / för att söka)"
+                placeholder="Sök i titel, författare, motivering eller tidskrift… (Tryck / för att söka)"
                 className="pl-9"
               />
             </div>
