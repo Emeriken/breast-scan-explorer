@@ -12,7 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as StatistikRouteImport } from './routes/statistik'
 import { Route as ManadensArtikelRouteImport } from './routes/manadens-artikel'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ArticlePmidRouteImport } from './routes/article.$pmid'
+import { Route as ArticlePmidRouteImport } from './routes/article/$pmid'
 import { Route as ApiFeedRouteImport } from './routes/api/feed'
 
 const StatistikRoute = StatistikRouteImport.update({
