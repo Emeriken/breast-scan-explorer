@@ -628,7 +628,7 @@ export function ArticleBrowser() {
                 id="article-search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Sök i titel, motivering eller tidskrift… (Tryck / för att söka)"
+                placeholder="Sök i titel, författare, motivering eller tidskrift… (Tryck / för att söka)"
                 className="pl-9"
               />
             </div>
