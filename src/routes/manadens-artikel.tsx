@@ -143,6 +143,19 @@ function ManadensArtikel() {
     });
   }, [articles, year, month, treatmentDef]);
 
+  // Toppartiklar (4–5p) från andra behandlingsområden samma månad
+  const otherTopArticles = useMemo(() => {
+    return articles
+      .filter((a) => {
+        const p = parseScoredAt(a.scored_at);
+        if (!p) return false;
+        if (p.y !== year || p.m !== month) return false;
+        if (treatmentDef.match.test(a.category || "")) return false;
+        return a.relevance_score >= 4;
+      })
+      .sort(sortByScoreThenDate);
+  }, [articles, year, month, treatmentDef]);
+
   const top = monthCandidates
     .filter((a) => a.relevance_score >= 4)
     .sort(sortByScoreThenDate);
