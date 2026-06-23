@@ -14,11 +14,16 @@ import {
 } from "@/components/ArticleBrowser";
 import { externalLinkProps } from "@/lib/categories";
 import { pmidFromUrl } from "@/lib/journals";
+import { DisclaimerFooter } from "@/components/Footer";
 
 export const Route = createFileRoute("/article/$pmid")({
-  head: () => ({
+  head: ({ params }) => ({
     meta: [
-      { title: "Artikel — Bröstcancerartiklar" },
+      { title: `PMID ${params.pmid} — Bröstcancer-bevakning` },
+      {
+        name: "description",
+        content: "Detaljerad vy av en AI-bedömd bröstcancerartikel.",
+      },
     ],
   }),
   component: ArticleDetail,
@@ -26,7 +31,7 @@ export const Route = createFileRoute("/article/$pmid")({
 
 function ArticleDetail() {
   const { pmid } = Route.useParams();
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["articles"],
     queryFn: fetchArticles,
     staleTime: 60_000,
@@ -65,14 +70,22 @@ function ArticleDetail() {
         )}
         {error && (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
-            Kunde inte ladda artikel: {(error as Error).message}
+            <p>Kunde inte ladda artikel: {(error as Error).message}</p>
+            <Button
+              className="mt-3"
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+            >
+              Försök igen
+            </Button>
           </div>
         )}
         {!isLoading && !error && !article && (
           <div className="rounded-xl border border-dashed p-10 text-center">
-            <p className="font-medium">Artikeln hittades inte (PMID {pmid}).</p>
+            <p className="font-medium">Artikeln finns inte i vår databas.</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Den kan ha fallit ur det publika urvalet.
+              Den kan ha publicerats utanför vårt bevakningsfönster (PMID {pmid}).
             </p>
           </div>
         )}
@@ -96,7 +109,7 @@ function ArticleDetail() {
               <span> · <PubDateDisplay pubDate={article.pub_date} /></span>
             </p>
             {authors && (
-              <p className="mt-1 text-xs text-muted-foreground">{authors}</p>
+              <p className="mt-2 text-xs text-muted-foreground">{authors}</p>
             )}
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -175,6 +188,7 @@ function ArticleDetail() {
           </article>
         )}
       </main>
+      <DisclaimerFooter />
     </div>
   );
 }
