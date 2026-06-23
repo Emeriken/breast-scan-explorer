@@ -12,8 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as StatistikRouteImport } from './routes/statistik'
 import { Route as ManadensArtikelRouteImport } from './routes/manadens-artikel'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ArticlePmidRouteImport } from './routes/article.$pmid'
 import { Route as ApiFeedRouteImport } from './routes/api/feed'
-import { Route as ArticleRouteImport } from './routes/article.'
 
 const StatistikRoute = StatistikRouteImport.update({
   id: '/statistik',
@@ -30,14 +30,14 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ArticlePmidRoute = ArticlePmidRouteImport.update({
+  id: '/article/$pmid',
+  path: '/article/$pmid',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFeedRoute = ApiFeedRouteImport.update({
   id: '/api/feed',
   path: '/api/feed',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ArticleRoute = ArticleRouteImport.update({
-  id: '/article/',
-  path: '/article/',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -45,23 +45,23 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/manadens-artikel': typeof ManadensArtikelRoute
   '/statistik': typeof StatistikRoute
-  '/article/': typeof ArticleRoute
   '/api/feed': typeof ApiFeedRoute
+  '/article/$pmid': typeof ArticlePmidRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/manadens-artikel': typeof ManadensArtikelRoute
   '/statistik': typeof StatistikRoute
-  '/article': typeof ArticleRoute
   '/api/feed': typeof ApiFeedRoute
+  '/article/$pmid': typeof ArticlePmidRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/manadens-artikel': typeof ManadensArtikelRoute
   '/statistik': typeof StatistikRoute
-  '/article/': typeof ArticleRoute
   '/api/feed': typeof ApiFeedRoute
+  '/article/$pmid': typeof ArticlePmidRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -69,25 +69,25 @@ export interface FileRouteTypes {
     | '/'
     | '/manadens-artikel'
     | '/statistik'
-    | '/article/'
     | '/api/feed'
+    | '/article/$pmid'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/manadens-artikel' | '/statistik' | '/article' | '/api/feed'
+  to: '/' | '/manadens-artikel' | '/statistik' | '/api/feed' | '/article/$pmid'
   id:
     | '__root__'
     | '/'
     | '/manadens-artikel'
     | '/statistik'
-    | '/article/'
     | '/api/feed'
+    | '/article/$pmid'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ManadensArtikelRoute: typeof ManadensArtikelRoute
   StatistikRoute: typeof StatistikRoute
-  ArticleRoute: typeof ArticleRoute
   ApiFeedRoute: typeof ApiFeedRoute
+  ArticlePmidRoute: typeof ArticlePmidRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -113,18 +113,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/article/$pmid': {
+      id: '/article/$pmid'
+      path: '/article/$pmid'
+      fullPath: '/article/$pmid'
+      preLoaderRoute: typeof ArticlePmidRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/feed': {
       id: '/api/feed'
       path: '/api/feed'
       fullPath: '/api/feed'
       preLoaderRoute: typeof ApiFeedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/article/': {
-      id: '/article/'
-      path: '/article'
-      fullPath: '/article/'
-      preLoaderRoute: typeof ArticleRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -134,8 +134,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ManadensArtikelRoute: ManadensArtikelRoute,
   StatistikRoute: StatistikRoute,
-  ArticleRoute: ArticleRoute,
   ApiFeedRoute: ApiFeedRoute,
+  ArticlePmidRoute: ArticlePmidRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
