@@ -297,7 +297,9 @@ function ArticleCard({ article, query }: { article: Article; query: string }) {
           </span>
           <JournalBadge journal={article.journal} />
           {authors && (
-            <span className="block text-xs mt-0.5 line-clamp-1">{authors}</span>
+            <span className="block text-xs mt-0.5 line-clamp-1">
+              <Highlight text={authors} query={query} />
+            </span>
           )}
         </div>
 
