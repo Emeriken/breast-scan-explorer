@@ -459,7 +459,11 @@ export function ArticleBrowser() {
         if (!terms.includes(meshLower)) return false;
       }
       if (q) {
-        const hay = `${a.title} ${a.why_relevant} ${a.journal}`.toLowerCase();
+        const authorsStr = Array.isArray(a.authors)
+          ? a.authors.join(" ")
+          : (a.authors ?? "");
+        const hay =
+          `${a.title} ${a.why_relevant} ${a.journal} ${authorsStr}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
