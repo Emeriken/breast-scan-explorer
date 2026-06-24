@@ -36,3 +36,33 @@ export function parsePubDate(s: string | undefined | null): number {
   const ms = Date.parse(s);
   return isNaN(ms) ? 0 : ms;
 }
+
+/**
+ * Tolka PubMed-stil datumsträng till {år, månad} för månadsfiltrering.
+ *
+ * Hanterar:
+ * - "2026 May 28" → { y: 2026, m: 5 }
+ * - "2026 May"    → { y: 2026, m: 5 }
+ * - "2026"        → null (ofullständig — kan inte placeras i en specifik månad)
+ * - "" / undefined → null
+ *
+ * För framtidsdaterade artiklar (t.ex. ESMO-guidelines med "December 2026"
+ * som publiceras online "ahead of print"): kapa till nuvarande månad så de
+ * inte hamnar i framtiden i månadsvyn.
+ */
+export function parsePubDateToMonth(
+  s: string | undefined | null,
+): { y: number; m: number } | null {
+  if (!s || typeof s !== "string") return null;
+  // Måste innehålla bokstäver (månadsnamn) för att vara matchbar
+  if (!/[A-Za-z]/.test(s)) return null;
+  const t = Date.parse(s);
+  if (isNaN(t)) return null;
+  const d = new Date(t);
+  const now = new Date();
+  // Kapa framtidsdatum till nuvarande månad
+  if (d.getTime() > now.getTime()) {
+    return { y: now.getFullYear(), m: now.getMonth() + 1 };
+  }
+  return { y: d.getFullYear(), m: d.getMonth() + 1 };
+}
