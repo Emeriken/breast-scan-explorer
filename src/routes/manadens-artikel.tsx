@@ -26,7 +26,7 @@ import {
 import { DisclaimerFooter } from "@/components/Footer";
 import { JournalBadge } from "@/components/JournalBadge";
 import { MeshTags } from "@/components/MeshTags";
-import { pmidFromUrl } from "@/lib/journals";
+import { pmidFromUrl, parsePubDateToMonth } from "@/lib/journals";
 
 type TreatmentKey = "cytotoxisk" | "endokrin" | "stralbehandling";
 
@@ -109,11 +109,11 @@ function ManadensArtikel() {
 
   const articles = data?.articles ?? [];
 
-  // Latest month with data
+  // Latest month with data (based on pub_date, not scored_at)
   const latest = useMemo(() => {
     let best: { y: number; m: number } | null = null;
     for (const a of articles) {
-      const p = parseScoredAt(a.scored_at);
+      const p = parsePubDateToMonth(a.pub_date);
       if (!p) continue;
       if (!best || p.y > best.y || (p.y === best.y && p.m > best.m)) best = p;
     }
@@ -136,7 +136,7 @@ function ManadensArtikel() {
 
   const monthCandidates = useMemo(() => {
     return articles.filter((a) => {
-      const p = parseScoredAt(a.scored_at);
+      const p = parsePubDateToMonth(a.pub_date);
       if (!p) return false;
       if (p.y !== year || p.m !== month) return false;
       return treatmentDef.match.test(a.category || "");
@@ -147,7 +147,7 @@ function ManadensArtikel() {
   const otherTopArticles = useMemo(() => {
     return articles
       .filter((a) => {
-        const p = parseScoredAt(a.scored_at);
+        const p = parsePubDateToMonth(a.pub_date);
         if (!p) return false;
         if (p.y !== year || p.m !== month) return false;
         if (treatmentDef.match.test(a.category || "")) return false;
