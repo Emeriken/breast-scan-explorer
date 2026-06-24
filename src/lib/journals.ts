@@ -43,26 +43,33 @@ export function parsePubDate(s: string | undefined | null): number {
  * Hanterar:
  * - "2026 May 28" → { y: 2026, m: 5 }
  * - "2026 May"    → { y: 2026, m: 5 }
- * - "2026"        → null (ofullständig — kan inte placeras i en specifik månad)
+ * - "2026"        → null (ofullständig)
  * - "" / undefined → null
  *
  * För framtidsdaterade artiklar (t.ex. ESMO-guidelines med "December 2026"
- * som publiceras online "ahead of print"): kapa till nuvarande månad så de
- * inte hamnar i framtiden i månadsvyn.
+ * som faktiskt publiceras online "ahead of print"): fallback till scoredAt
+ * istället — det datumet representerar bättre när artikeln blev tillgänglig
+ * och förhindrar att artikeln dyker upp varje månad fram till sin officiella
+ * publiceringsdag.
  */
 export function parsePubDateToMonth(
-  s: string | undefined | null,
+  pubDate: string | undefined | null,
+  scoredAt?: string | undefined | null,
 ): { y: number; m: number } | null {
-  if (!s || typeof s !== "string") return null;
-  // Måste innehålla bokstäver (månadsnamn) för att vara matchbar
-  if (!/[A-Za-z]/.test(s)) return null;
-  const t = Date.parse(s);
+  if (!pubDate || typeof pubDate !== "string") return null;
+  if (!/[A-Za-z]/.test(pubDate)) return null;
+  const t = Date.parse(pubDate);
   if (isNaN(t)) return null;
   const d = new Date(t);
   const now = new Date();
-  // Kapa framtidsdatum till nuvarande månad
+
+  // Framtidsdatum (typiskt ahead-of-print): fallback till scored_at
   if (d.getTime() > now.getTime()) {
-    return { y: now.getFullYear(), m: now.getMonth() + 1 };
+    if (!scoredAt) return null;
+    const sd = new Date(scoredAt);
+    if (isNaN(sd.getTime())) return null;
+    return { y: sd.getFullYear(), m: sd.getMonth() + 1 };
   }
+
   return { y: d.getFullYear(), m: d.getMonth() + 1 };
 }

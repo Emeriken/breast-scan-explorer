@@ -113,7 +113,7 @@ function ManadensArtikel() {
   const latest = useMemo(() => {
     let best: { y: number; m: number } | null = null;
     for (const a of articles) {
-      const p = parsePubDateToMonth(a.pub_date);
+      const p = parsePubDateToMonth(a.pub_date, a.scored_at);
       if (!p) continue;
       if (!best || p.y > best.y || (p.y === best.y && p.m > best.m)) best = p;
     }
@@ -136,7 +136,7 @@ function ManadensArtikel() {
 
   const monthCandidates = useMemo(() => {
     return articles.filter((a) => {
-      const p = parsePubDateToMonth(a.pub_date);
+      const p = parsePubDateToMonth(a.pub_date, a.scored_at);
       if (!p) return false;
       if (p.y !== year || p.m !== month) return false;
       return treatmentDef.match.test(a.category || "");
@@ -147,7 +147,7 @@ function ManadensArtikel() {
   const otherTopArticles = useMemo(() => {
     return articles
       .filter((a) => {
-        const p = parsePubDateToMonth(a.pub_date);
+      const p = parsePubDateToMonth(a.pub_date, a.scored_at);
         if (!p) return false;
         if (p.y !== year || p.m !== month) return false;
         if (treatmentDef.match.test(a.category || "")) return false;
