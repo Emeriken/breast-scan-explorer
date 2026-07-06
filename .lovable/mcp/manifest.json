@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "mcp": {
+    "server": {
+      "name": "brostcancer-bevakning-mcp",
+      "version": "0.1.0",
+      "title": "Bröstcancer-bevakning MCP"
+    },
+    "tools": [
+      {
+        "name": "list_articles",
+        "title": "List articles",
+        "description": "Lista AI-bedömda bröstcancerartiklar. Filtrera på kategori och minsta relevanspoäng (1–5). Sorteras med senast bedömda först.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "category": {
+              "description": "Filtrera på behandlingsområde/kategori, t.ex. 'endokrin'.",
+              "type": "string"
+            },
+            "min_score": {
+              "description": "Minsta relevanspoäng (1–5).",
+              "type": "number",
+              "minimum": 1,
+              "maximum": 5
+            },
+            "limit": {
+              "description": "Max antal artiklar att returnera (standard 50).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "search_articles",
+        "title": "Search articles",
+        "description": "Fritextsök i titel, tidskrift, kategori och AI-motivering bland bröstcancerartiklarna.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Söktext (fritext)."
+            },
+            "limit": {
+              "description": "Max antal träffar (standard 25).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "required": [
+            "query"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_article",
+        "title": "Get article by PMID",
+        "description": "Hämta en enskild bröstcancerartikel via dess PubMed-ID (PMID).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "pmid": {
+              "type": "string",
+              "pattern": "^\\d+$",
+              "description": "PubMed-ID, t.ex. '39012345'."
+            }
+          },
+          "required": [
+            "pmid"
+          ]
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
