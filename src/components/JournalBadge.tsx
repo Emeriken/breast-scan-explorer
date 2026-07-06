@@ -6,7 +6,7 @@ export function JournalBadge({ journal }: { journal: string }) {
   return (
     <span
       title={`KI-JL nivå ${lvl}`}
-      className="ml-1 inline-flex items-center rounded border border-muted-foreground/30 px-1 py-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+      className="ml-1.5 inline-flex items-center rounded-sm border border-border/60 px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-wider text-muted-foreground"
     >
       L{lvl}
     </span>
