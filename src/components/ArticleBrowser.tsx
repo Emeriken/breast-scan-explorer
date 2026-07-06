@@ -102,7 +102,7 @@ export function PubDateDisplay({ pubDate }: { pubDate?: string }) {
       <span>{formatDate(pubDate) || pubDate}</span>
       {isFuture && (
         <span
-          className="rounded-sm bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+          className="rounded-sm border border-amber-200/60 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"
           title="Publiceringsdatum ligger i framtiden — sannolikt redan tillgänglig online som 'ahead of print'"
         >
           Ahead of print
@@ -115,13 +115,10 @@ export function PubDateDisplay({ pubDate }: { pubDate?: string }) {
 export function CategoryTag({ category }: { category: string }) {
   const c = categoryColor(category);
   return (
-    <span
-      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-      style={{ backgroundColor: c.bg, color: c.text }}
-    >
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
       <span
         aria-hidden
-        className="mr-1.5 inline-block h-2 w-2 rounded-full"
+        className="inline-block h-2 w-2 rounded-full"
         style={{ backgroundColor: c.solid }}
       />
       {category}
@@ -137,8 +134,10 @@ export function Stars({ score }: { score: number }) {
         <Star
           key={i}
           className={cn(
-            "h-4 w-4",
-            i < n ? "fill-primary text-primary" : "text-muted-foreground/30",
+            "h-3.5 w-3.5",
+            i < n
+              ? "fill-amber-500 text-amber-500"
+              : "text-muted-foreground/25",
           )}
         />
       ))}
@@ -232,10 +231,10 @@ function QuickFilterButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-full border px-4 py-2 text-xs font-medium transition-colors min-h-9 sm:min-h-0",
+        "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors min-h-9 sm:min-h-0",
         active
-          ? "border-primary bg-primary text-primary-foreground shadow-sm"
-          : "border-input bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+          ? "border-foreground/80 bg-foreground text-background"
+          : "border-border/60 bg-background text-muted-foreground hover:border-border hover:text-foreground",
       )}
       aria-pressed={active}
     >
@@ -258,7 +257,7 @@ function ArticleCard({ article, query }: { article: Article; query: string }) {
   const pmid = pmidFromUrl(article.url);
 
   return (
-    <article className="rounded-xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md">
+    <article className="rounded-lg border border-neutral-200/70 bg-card p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_1px_1px_rgba(0,0,0,0.06)] transition-all duration-200 hover:border-neutral-300 hover:shadow-md sm:p-6">
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -270,12 +269,12 @@ function ArticleCard({ article, query }: { article: Article; query: string }) {
           </span>
         </div>
 
-        <h2 className="text-base font-semibold leading-snug sm:text-lg">
+        <h2 className="text-base font-semibold leading-[1.35] tracking-[-0.01em] sm:text-lg">
           {pmid ? (
             <Link
               to="/article/$pmid"
               params={{ pmid }}
-              className="text-foreground hover:text-primary hover:underline"
+              className="text-foreground hover:underline"
             >
               <Highlight text={article.title} query={query} />
             </Link>
@@ -283,7 +282,7 @@ function ArticleCard({ article, query }: { article: Article; query: string }) {
             <a
               href={article.url}
               {...externalLinkProps}
-              className="text-foreground hover:text-primary hover:underline"
+              className="text-foreground hover:underline"
             >
               <Highlight text={article.title} query={query} />
               <ExternalLink className="ml-1 inline h-3.5 w-3.5 align-baseline opacity-60" />
@@ -304,7 +303,7 @@ function ArticleCard({ article, query }: { article: Article; query: string }) {
         </div>
 
         {article.why_relevant && (
-          <p className="rounded-lg bg-muted/60 p-3 text-sm text-foreground/80">
+          <p className="rounded-md border border-border/50 bg-muted/40 p-3 text-sm text-foreground/80">
             <span className="font-semibold text-foreground">Motivering: </span>
             <Highlight text={article.why_relevant} query={query} />
           </p>
@@ -314,7 +313,7 @@ function ArticleCard({ article, query }: { article: Article; query: string }) {
           <div>
             <button
               onClick={() => setOpen((v) => !v)}
-              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+              className="inline-flex items-center gap-1 text-sm font-medium text-foreground/80 hover:text-foreground hover:underline"
               aria-expanded={open}
             >
               <ChevronDown
