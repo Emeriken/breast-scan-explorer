@@ -575,14 +575,14 @@ export function ArticleBrowser() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/50 backdrop-blur">
+      <header className="border-b border-border/70 bg-background">
         <div className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
           <div className="mb-4">
             <NavTabs />
           </div>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              <h1 className="text-2xl font-bold tracking-[-0.02em] sm:text-3xl">
                 Bröstcancerartiklar
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -621,7 +621,7 @@ export function ArticleBrowser() {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-6">
-        <div className="sticky top-0 z-10 -mx-4 mb-6 border-b bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:rounded-xl sm:border sm:bg-card sm:p-4 sm:shadow-sm">
+        <div className="sticky top-0 z-10 -mx-4 mb-6 border-b border-border/70 bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:rounded-lg sm:border sm:border-border/70 sm:bg-card sm:p-4 sm:shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
           <div className="flex flex-col gap-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -630,7 +630,7 @@ export function ArticleBrowser() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Sök i titel, författare, motivering eller tidskrift… (Tryck / för att söka)"
-                className="pl-9"
+                className="rounded-md border-border pl-9 shadow-inner focus-visible:border-foreground/40"
               />
             </div>
 
