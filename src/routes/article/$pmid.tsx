@@ -14,6 +14,8 @@ import {
 import { externalLinkProps } from "@/lib/categories";
 import { pmidFromUrl } from "@/lib/journals";
 import { DisclaimerFooter } from "@/components/Footer";
+import { AiTag, NoticeBadge } from "@/components/Labels";
+import { DeepAnalysisList, hasDeepAnalysis } from "@/components/DeepAnalysis";
 
 export const Route = createFileRoute("/article/$pmid")({
   head: ({ params }) => ({
@@ -44,9 +46,6 @@ function ArticleDetail() {
       : article.authors
     : "";
   const da = article?.deep_analysis;
-  const hasDeep =
-    da &&
-    (da.central_finding || da.limitation || da.vs_standard || da.applicability);
 
   return (
     <div className="min-h-screen bg-background">
@@ -83,10 +82,11 @@ function ArticleDetail() {
           {article && (
             <article className="rounded-xl border bg-card p-6 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center gap-2">
+                <NoticeBadge title={article.title} />
                 <CategoryTag category={article.category} />
                 <Stars score={article.relevance_score} />
-                <Badge variant="secondary">
-                  Relevans {Math.round(article.relevance_score)}/5
+                <Badge variant="secondary" title="AI-bedömd relevans">
+                  AI-relevans {Math.round(article.relevance_score)}/5
                 </Badge>
               </div>
               <h1 className="text-xl font-bold leading-tight sm:text-2xl">
@@ -125,44 +125,21 @@ function ArticleDetail() {
 
               {article.why_relevant && (
                 <div className="mt-5">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <AiTag />
                     Motivering
                   </h2>
                   <p className="mt-1 text-sm">{article.why_relevant}</p>
                 </div>
               )}
 
-              {hasDeep && (
+              {hasDeepAnalysis(da) && (
                 <div className="mt-5">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <AiTag />
                     Djupanalys
                   </h2>
-                  <dl className="mt-2 grid gap-3 rounded-lg border border-dashed bg-background p-4 text-sm sm:grid-cols-2">
-                    {da?.central_finding && (
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Centralt fynd</dt>
-                        <dd className="mt-1">{da.central_finding}</dd>
-                      </div>
-                    )}
-                    {da?.limitation && (
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Begränsning</dt>
-                        <dd className="mt-1">{da.limitation}</dd>
-                      </div>
-                    )}
-                    {da?.vs_standard && (
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Jämfört med standard</dt>
-                        <dd className="mt-1">{da.vs_standard}</dd>
-                      </div>
-                    )}
-                    {da?.applicability && (
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tillämpbarhet</dt>
-                        <dd className="mt-1">{da.applicability}</dd>
-                      </div>
-                    )}
-                  </dl>
+                  <DeepAnalysisList da={da} className="mt-2" />
                 </div>
               )}
 
