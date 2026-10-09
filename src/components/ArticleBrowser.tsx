@@ -51,6 +51,8 @@ import {
   type SortKey,
 } from "@/lib/article-search";
 import { useNewArticles } from "@/hooks/use-new-articles";
+import { AiTag, NoticeBadge } from "@/components/Labels";
+import { DeepAnalysisList, hasDeepAnalysis } from "@/components/DeepAnalysis";
 
 export const DATA_URL =
   "https://raw.githubusercontent.com/Emeriken/brostcancer-publik/main/public-index.json";
@@ -150,7 +152,12 @@ export function CategoryTag({ category }: { category: string }) {
 export function Stars({ score }: { score: number }) {
   const n = Math.max(0, Math.min(5, Math.round(score)));
   return (
-    <div className="flex items-center gap-0.5" role="img" aria-label={`Relevans ${n} av 5`}>
+    <div
+      className="flex items-center gap-0.5"
+      role="img"
+      aria-label={`AI-bedömd relevans ${n} av 5`}
+      title={`AI-bedömd relevans ${n} av 5`}
+    >
       {Array.from({ length: 5 }).map((_, i) => (
         <Star
           key={i}
@@ -416,9 +423,6 @@ function ArticleCard({
 }) {
   const [open, setOpen] = useState(false);
   const da = article.deep_analysis;
-  const hasDeep =
-    da &&
-    (da.central_finding || da.limitation || da.vs_standard || da.applicability);
 
   const authors = Array.isArray(article.authors)
     ? article.authors.join(", ")
@@ -436,6 +440,7 @@ function ArticleCard({
                 Ny
               </span>
             )}
+            <NoticeBadge title={article.title} />
             <CategoryTag category={article.category} />
             <Stars score={article.relevance_score} />
           </div>
@@ -479,12 +484,13 @@ function ArticleCard({
 
         {article.why_relevant && (
           <p className="rounded-md border border-border/50 bg-muted/40 p-3 text-sm text-foreground/80">
+            <AiTag className="mr-1.5" />
             <span className="font-semibold text-foreground">Motivering: </span>
             <Highlight text={article.why_relevant} query={query} />
           </p>
         )}
 
-        {hasDeep && (
+        {hasDeepAnalysis(da) && (
           <div>
             <button
               type="button"
@@ -499,40 +505,7 @@ function ArticleCard({
             </button>
             {open && (
               <>
-                <dl className="mt-3 grid gap-3 rounded-lg border border-dashed bg-background p-4 text-sm sm:grid-cols-2">
-                  {da?.central_finding && (
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Centralt fynd
-                      </dt>
-                      <dd className="mt-1">{da.central_finding}</dd>
-                    </div>
-                  )}
-                  {da?.limitation && (
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Begränsning
-                      </dt>
-                      <dd className="mt-1">{da.limitation}</dd>
-                    </div>
-                  )}
-                  {da?.vs_standard && (
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Jämfört med standard
-                      </dt>
-                      <dd className="mt-1">{da.vs_standard}</dd>
-                    </div>
-                  )}
-                  {da?.applicability && (
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Tillämpbarhet
-                      </dt>
-                      <dd className="mt-1">{da.applicability}</dd>
-                    </div>
-                  )}
-                </dl>
+                <DeepAnalysisList da={da} className="mt-3" />
                 {article.mesh_terms && article.mesh_terms.length > 0 && (
                   <div className="mt-3">
                     <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

@@ -26,6 +26,12 @@ import { DisclaimerFooter } from "@/components/Footer";
 import { JournalBadge } from "@/components/JournalBadge";
 import { MeshTags } from "@/components/MeshTags";
 import { pmidFromUrl, parsePubDateToMonth } from "@/lib/journals";
+import { noticeType } from "@/lib/notices";
+import { AiTag } from "@/components/Labels";
+import { DeepAnalysisList, hasDeepAnalysis } from "@/components/DeepAnalysis";
+
+/** Rättelser, indragningar och kommentarer är inte presentationskandidater. */
+const isCandidateMaterial = (a: Article) => noticeType(a.title) === null;
 
 type TreatmentKey = "cytotoxisk" | "endokrin" | "stralbehandling";
 
@@ -121,7 +127,7 @@ function ManadensArtikel() {
       const k = monthKey(p.y, p.m);
       all.add(k);
       const score = Math.round(a.relevance_score);
-      if (score < 3) continue;
+      if (score < 3 || !isCandidateMaterial(a)) continue;
       for (const t of TREATMENTS) {
         if (!t.match.test(a.category || "")) continue;
         const c = byTreatment[t.key].get(k) ?? { top: 0, three: 0 };
@@ -164,6 +170,7 @@ function ManadensArtikel() {
 
   const monthCandidates = useMemo(() => {
     return articles.filter((a) => {
+      if (!isCandidateMaterial(a)) return false;
       const p = parsePubDateToMonth(a.pub_date, a.scored_at);
       if (!p) return false;
       if (p.y !== year || p.m !== month) return false;
@@ -175,7 +182,8 @@ function ManadensArtikel() {
   const otherTopArticles = useMemo(() => {
     return articles
       .filter((a) => {
-      const p = parsePubDateToMonth(a.pub_date, a.scored_at);
+        if (!isCandidateMaterial(a)) return false;
+        const p = parsePubDateToMonth(a.pub_date, a.scored_at);
         if (!p) return false;
         if (p.y !== year || p.m !== month) return false;
         if (treatmentDef.match.test(a.category || "")) return false;
@@ -348,7 +356,8 @@ function ManadensArtikel() {
           <p className="mt-3 text-xs text-muted-foreground">
             Artiklarna grupperas efter publiceringsmånad i PubMed. Artiklar med
             publiceringsdatum i framtiden (ahead of print) räknas till månaden
-            då de bedömdes. Siffran i månadslistan är antalet kandidater.
+            då de bedömdes. Rättelser, indragningar och kommentarer räknas inte
+            som kandidater. Siffran i månadslistan är antalet kandidater.
           </p>
         </section>
 
@@ -498,9 +507,6 @@ function CandidateCard({
 }) {
   const [open, setOpen] = useState(false);
   const da = article.deep_analysis;
-  const hasDeep =
-    da &&
-    (da.central_finding || da.limitation || da.vs_standard || da.applicability);
 
   return (
     <article className="rounded-xl border bg-card p-5 shadow-sm">
@@ -509,8 +515,8 @@ function CandidateCard({
           <div className="flex flex-wrap items-center gap-2">
             <CategoryTag category={article.category} />
             <Stars score={article.relevance_score} />
-            <Badge variant="secondary">
-              Relevans {Math.round(article.relevance_score)}/5
+            <Badge variant="secondary" title="AI-bedömd relevans">
+              AI-relevans {Math.round(article.relevance_score)}/5
             </Badge>
           </div>
           <span className="text-xs text-muted-foreground">
@@ -531,16 +537,18 @@ function CandidateCard({
 
         {article.why_relevant && (
           <p className="rounded-lg bg-muted/60 p-3 text-sm text-foreground/80">
+            <AiTag className="mr-1.5" />
             <span className="font-semibold text-foreground">Motivering: </span>
             {article.why_relevant}
           </p>
         )}
 
-        {hasDeep && (
+        {hasDeepAnalysis(da) && (
           <div>
             <button
+              type="button"
               onClick={() => setOpen((v) => !v)}
-              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+              className="inline-flex min-h-8 items-center gap-1 text-sm font-medium text-primary hover:underline"
               aria-expanded={open}
             >
               <ChevronDown
@@ -553,7 +561,7 @@ function CandidateCard({
             </button>
             {open && (
               <>
-                <DeepAnalysisGrid da={da!} />
+                <DeepAnalysisList da={da} className="mt-3" />
                 {article.mesh_terms && article.mesh_terms.length > 0 && (
                   <div className="mt-3">
                     <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -581,34 +589,6 @@ function CandidateCard({
         </div>
       </div>
     </article>
-  );
-}
-
-function DeepAnalysisGrid({
-  da,
-}: {
-  da: NonNullable<Article["deep_analysis"]>;
-}) {
-  const items: [string, string | undefined][] = [
-    ["Centralt fynd", da.central_finding],
-    ["Begränsning", da.limitation],
-    ["Jämfört med standard", da.vs_standard],
-    ["Tillämpbarhet", da.applicability],
-  ];
-  return (
-    <dl className="mt-3 grid gap-3 rounded-lg border border-dashed bg-background p-4 text-sm sm:grid-cols-2">
-      {items.map(
-        ([k, v]) =>
-          v && (
-            <div key={k}>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {k}
-              </dt>
-              <dd className="mt-1">{v}</dd>
-            </div>
-          ),
-      )}
-    </dl>
   );
 }
 
@@ -692,8 +672,8 @@ function PrepareView({
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <CategoryTag category={article.category} />
               <Stars score={article.relevance_score} />
-              <Badge variant="secondary">
-                Relevans {Math.round(article.relevance_score)}/5
+              <Badge variant="secondary" title="AI-bedömd relevans">
+                AI-relevans {Math.round(article.relevance_score)}/5
               </Badge>
             </div>
             <h1 className="text-xl font-bold leading-tight sm:text-2xl">
@@ -719,25 +699,23 @@ function PrepareView({
 
             {article.why_relevant && (
               <div className="mt-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  <AiTag />
                   Motivering
                 </h2>
                 <p className="mt-1 text-sm">{article.why_relevant}</p>
               </div>
             )}
 
-            {da &&
-              (da.central_finding ||
-                da.limitation ||
-                da.vs_standard ||
-                da.applicability) && (
-                <div className="mt-4">
-                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                    Djupanalys
-                  </h2>
-                  <DeepAnalysisGrid da={da} />
-                </div>
-              )}
+            {hasDeepAnalysis(da) && (
+              <div className="mt-4">
+                <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  <AiTag />
+                  Djupanalys
+                </h2>
+                <DeepAnalysisList da={da} className="mt-3" />
+              </div>
+            )}
           </article>
 
           <section className="mt-6 rounded-xl border bg-card p-6 shadow-sm print:mt-8 print:rounded-none print:border-0 print:p-0 print:shadow-none">
