@@ -89,6 +89,16 @@ function shiftMonth(year: number, month: number, delta: number) {
   return { year: d.getFullYear(), month: d.getMonth() + 1 };
 }
 
+/** Månad som ett heltal (år * 12 + månadsindex), lätt att jämföra och sortera. */
+const monthKey = (y: number, m: number) => y * 12 + (m - 1);
+const fromMonthKey = (k: number) => ({ year: Math.floor(k / 12), month: (k % 12) + 1 });
+
+type MonthCounts = { top: number; three: number };
+
+/** Antal kandidater som listan visar: 4–5-poängare, annars 3-poängare. */
+const candidateCount = (c: MonthCounts | undefined) =>
+  !c ? 0 : c.top > 0 ? c.top : c.three;
+
 function ManadensArtikel() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
@@ -97,25 +107,55 @@ function ManadensArtikel() {
 
   const articles = useMemo(() => data?.articles ?? [], [data]);
 
-  // Latest month with data (based on pub_date, not scored_at)
-  const latest = useMemo(() => {
-    let best: { y: number; m: number } | null = null;
+  // Publiceringsmånader i datat, och antal kandidater per behandlingsområde och månad
+  const monthStats = useMemo(() => {
+    const all = new Set<number>();
+    const byTreatment: Record<TreatmentKey, Map<number, MonthCounts>> = {
+      cytotoxisk: new Map(),
+      endokrin: new Map(),
+      stralbehandling: new Map(),
+    };
     for (const a of articles) {
       const p = parsePubDateToMonth(a.pub_date, a.scored_at);
       if (!p) continue;
-      if (!best || p.y > best.y || (p.y === best.y && p.m > best.m)) best = p;
+      const k = monthKey(p.y, p.m);
+      all.add(k);
+      const score = Math.round(a.relevance_score);
+      if (score < 3) continue;
+      for (const t of TREATMENTS) {
+        if (!t.match.test(a.category || "")) continue;
+        const c = byTreatment[t.key].get(k) ?? { top: 0, three: 0 };
+        if (score >= 4) c.top += 1;
+        else c.three += 1;
+        byTreatment[t.key].set(k, c);
+      }
     }
-    return best;
+    const sorted = Array.from(all).sort((x, y) => x - y);
+    return {
+      first: sorted.length ? sorted[0] : null,
+      last: sorted.length ? sorted[sorted.length - 1] : null,
+      byTreatment,
+    };
   }, [articles]);
 
   const now = new Date();
-  const defaultYear = latest?.y ?? now.getFullYear();
-  const defaultMonth = latest?.m ?? now.getMonth() + 1;
   const defaultTreatment: TreatmentKey = "cytotoxisk";
-
-  const month = search.month ?? defaultMonth;
-  const year = search.year ?? defaultYear;
   const treatment = (search.treatment ?? defaultTreatment) as TreatmentKey;
+
+  // Utan vald månad: öppna på senaste månaden som har kandidater i det valda området
+  const latestCandidateKey = useMemo(() => {
+    let best: number | null = null;
+    for (const [k, c] of monthStats.byTreatment[treatment]) {
+      if (candidateCount(c) > 0 && (best === null || k > best)) best = k;
+    }
+    return best;
+  }, [monthStats, treatment]);
+  const defaultKey =
+    latestCandidateKey ?? monthStats.last ?? monthKey(now.getFullYear(), now.getMonth() + 1);
+  const defaultMonth = fromMonthKey(defaultKey);
+
+  const month = search.month ?? defaultMonth.month;
+  const year = search.year ?? defaultMonth.year;
 
   const setSearch = (next: Partial<typeof search>) =>
     navigate({ search: (prev: typeof search) => ({ ...prev, ...next }) });
@@ -145,7 +185,7 @@ function ManadensArtikel() {
   }, [articles, year, month, treatmentDef]);
 
   const top = monthCandidates
-    .filter((a) => a.relevance_score >= 4)
+    .filter((a) => Math.round(a.relevance_score) >= 4)
     .sort(sortByScoreThenDate);
   const fallback = monthCandidates
     .filter((a) => Math.round(a.relevance_score) === 3)
@@ -174,6 +214,29 @@ function ManadensArtikel() {
 
   const prev = shiftMonth(year, month, -1);
   const next = shiftMonth(year, month, 1);
+  const prevDisabled =
+    monthStats.first !== null && monthKey(prev.year, prev.month) < monthStats.first;
+  const nextDisabled =
+    monthStats.last !== null && monthKey(next.year, next.month) > monthStats.last;
+
+  // Årslistan byggs från datat, plus valt år om det ligger utanför
+  const yearOptions = (() => {
+    const years = new Set<number>([year]);
+    if (monthStats.first !== null && monthStats.last !== null) {
+      for (let y = fromMonthKey(monthStats.first).year; y <= fromMonthKey(monthStats.last).year; y++)
+        years.add(y);
+    } else {
+      years.add(now.getFullYear());
+    }
+    return Array.from(years).sort((a, b) => a - b);
+  })();
+
+  const countsThisTreatment = monthStats.byTreatment[treatment];
+  const latestCandidate =
+    latestCandidateKey !== null ? fromMonthKey(latestCandidateKey) : null;
+  const showJumpToLatest =
+    latestCandidate !== null &&
+    (latestCandidate.year !== year || latestCandidate.month !== month);
 
   return (
     <div className="min-h-screen bg-background">
@@ -200,11 +263,14 @@ function ManadensArtikel() {
                 }
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                {MONTHS_SV.map((m, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {m}
-                  </option>
-                ))}
+                {MONTHS_SV.map((m, i) => {
+                  const c = candidateCount(countsThisTreatment.get(monthKey(year, i + 1)));
+                  return (
+                    <option key={i + 1} value={i + 1}>
+                      {c > 0 ? `${m} (${c})` : m}
+                    </option>
+                  );
+                })}
               </select>
             </label>
             <label className="text-sm">
@@ -216,14 +282,11 @@ function ManadensArtikel() {
                 }
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                {Array.from({ length: 6 }).map((_, i) => {
-                  const y = now.getFullYear() - 4 + i;
-                  return (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  );
-                })}
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
               </select>
             </label>
             <div className="text-sm sm:col-span-1">
@@ -249,16 +312,20 @@ function ManadensArtikel() {
             </div>
           </div>
 
-          <div className="mt-4 flex items-center justify-between text-sm">
+          <div className="mt-4 flex items-center justify-between gap-2 text-sm">
             <Button
               variant="ghost"
               size="sm"
+              disabled={prevDisabled}
+              aria-label={`Föregående månad: ${MONTHS_SV[prev.month - 1]} ${prev.year}`}
               onClick={() =>
                 setSearch({ year: prev.year, month: prev.month })
               }
             >
               <ChevronLeft className="h-4 w-4" />
-              {MONTHS_SV[prev.month - 1]} {prev.year}
+              <span className="hidden sm:inline">
+                {MONTHS_SV[prev.month - 1]} {prev.year}
+              </span>
             </Button>
             <span className="font-medium">
               {MONTHS_SV[month - 1]} {year}
@@ -266,14 +333,23 @@ function ManadensArtikel() {
             <Button
               variant="ghost"
               size="sm"
+              disabled={nextDisabled}
+              aria-label={`Nästa månad: ${MONTHS_SV[next.month - 1]} ${next.year}`}
               onClick={() =>
                 setSearch({ year: next.year, month: next.month })
               }
             >
-              {MONTHS_SV[next.month - 1]} {next.year}
+              <span className="hidden sm:inline">
+                {MONTHS_SV[next.month - 1]} {next.year}
+              </span>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Artiklarna grupperas efter publiceringsmånad i PubMed. Artiklar med
+            publiceringsdatum i framtiden (ahead of print) räknas till månaden
+            då de bedömdes. Siffran i månadslistan är antalet kandidater.
+          </p>
         </section>
 
         <section className="mt-6">
@@ -300,9 +376,23 @@ function ManadensArtikel() {
                 Inga kandidater för {MONTHS_SV[month - 1]} {year}.
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Inga artiklar i kategorin {treatmentDef.label.toLowerCase()}{" "}
-                bedömdes denna månad. Prova en annan månad eller kategori.
+                Inga artiklar inom {treatmentDef.label.toLowerCase()} med minst
+                3 poäng har publiceringsmånad {MONTHS_SV[month - 1].toLowerCase()}{" "}
+                {year}.
               </p>
+              {showJumpToLatest && latestCandidate && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={() =>
+                    setSearch({ year: latestCandidate.year, month: latestCandidate.month })
+                  }
+                >
+                  Gå till senaste månaden med kandidater:{" "}
+                  {MONTHS_SV[latestCandidate.month - 1]} {latestCandidate.year}
+                </Button>
+              )}
             </div>
           )}
 
@@ -318,7 +408,8 @@ function ManadensArtikel() {
               </div>
               {useFallback && (
                 <div className="mb-4 rounded-lg border border-amber-300/50 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
-                  Inga toppartiklar denna månad — visar 3-poängare istället.
+                  Inga artiklar med 4–5 poäng den här månaden. Visar artiklar med
+                  3 poäng i stället.
                 </div>
               )}
               <div className="space-y-4">
