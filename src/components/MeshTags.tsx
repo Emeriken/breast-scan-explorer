@@ -14,7 +14,7 @@ export function MeshTags({ terms }: { terms: string[] | undefined }) {
             to="/"
             search={{ mesh: term }}
             className={cn(
-              "inline-flex items-center rounded-full border px-2 py-0.5 text-xs transition-colors",
+              "inline-flex min-h-7 items-center rounded-full border px-2.5 py-0.5 text-xs transition-colors sm:min-h-0",
               major
                 ? "border-primary/40 bg-primary/10 font-semibold text-primary hover:bg-primary/20"
                 : "border-input bg-muted text-muted-foreground hover:bg-accent hover:text-foreground",

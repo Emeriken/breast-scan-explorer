@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useCanGoBack, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,11 @@ export const Route = createFileRoute("/article/$pmid")({
 function ArticleDetail() {
   const { pmid } = Route.useParams();
   const { data, isLoading, error, refetch } = useQuery(articlesQueryOptions);
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
+  // Gå tillbaka i historiken när det går, så att filter och scrollposition
+  // i listan finns kvar. Kom man direkt till artikeln går knappen till startsidan.
+  const goBack = () => (canGoBack ? router.history.back() : router.navigate({ to: "/" }));
 
   const article = data?.articles.find((a) => (a.pmid ?? pmidFromUrl(a.url)) === pmid);
   const authors = article
@@ -47,11 +52,9 @@ function ArticleDetail() {
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-5xl px-4 py-6">
         <div className="max-w-3xl">
-          <Button asChild variant="ghost" size="sm" className="-ml-3 mb-4">
-            <Link to="/">
-              <ArrowLeft className="h-4 w-4" />
-              Tillbaka till listan
-            </Link>
+          <Button variant="ghost" size="sm" className="-ml-3 mb-4" onClick={goBack}>
+            <ArrowLeft className="h-4 w-4" />
+            Tillbaka
           </Button>
           {isLoading && (
             <div className="h-60 animate-pulse rounded-xl border bg-card" />

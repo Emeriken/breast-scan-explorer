@@ -1,13 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ArticleBrowser } from "@/components/ArticleBrowser";
-import { z } from "zod";
-
-const searchSchema = z.object({
-  mesh: z.string().optional(),
-});
+import { articleSearchSchema } from "@/lib/article-search";
 
 export const Route = createFileRoute("/")({
-  validateSearch: (s) => searchSchema.parse(s),
+  validateSearch: (s) => articleSearchSchema.parse(s),
   head: () => ({
     meta: [
       { title: "Bröstcancerartiklar – AI-bedömd forskningsöversikt" },
