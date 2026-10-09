@@ -2,6 +2,10 @@ import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { fetchFeed } from "../data";
 
+/** Gemener utan diakritiska tecken, så att "strål" matchar "Strålbehandling". */
+const normalize = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").trim();
+
 export default defineTool({
   name: "list_articles",
   title: "List articles",
@@ -11,7 +15,9 @@ export default defineTool({
     category: z
       .string()
       .optional()
-      .describe("Filtrera på behandlingsområde/kategori, t.ex. 'endokrin'."),
+      .describe(
+        "Filtrera på behandlingsområde/kategori. Delmatchning som ignorerar versaler och å/ä/ö, t.ex. 'endokrin' eller 'strål'.",
+      ),
     min_score: z
       .number()
       .min(1)
@@ -29,9 +35,9 @@ export default defineTool({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
   handler: async ({ category, min_score, limit }) => {
     const { articles, updated } = await fetchFeed();
-    const cat = category?.trim().toLowerCase();
+    const cat = category ? normalize(category) : "";
     const filtered = articles.filter((a) => {
-      if (cat && a.category?.toLowerCase() !== cat) return false;
+      if (cat && !normalize(a.category ?? "").includes(cat)) return false;
       if (min_score != null && (a.relevance_score ?? 0) < min_score) return false;
       return true;
     });

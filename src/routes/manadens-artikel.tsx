@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { NavTabs } from "@/components/NavTabs";
 import {
-  fetchArticles,
+  articlesQueryOptions,
   CategoryTag,
   Stars,
   PubDateDisplay,
@@ -85,13 +85,6 @@ export const Route = createFileRoute("/manadens-artikel")({
   component: ManadensArtikel,
 });
 
-function parseScoredAt(iso: string): { y: number; m: number } | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return null;
-  return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1 };
-}
-
 function shiftMonth(year: number, month: number, delta: number) {
   const d = new Date(year, month - 1 + delta, 1);
   return { year: d.getFullYear(), month: d.getMonth() + 1 };
@@ -101,13 +94,9 @@ function ManadensArtikel() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["articles"],
-    queryFn: fetchArticles,
-    staleTime: 60_000,
-  });
+  const { data, isLoading, error } = useQuery(articlesQueryOptions);
 
-  const articles = data?.articles ?? [];
+  const articles = useMemo(() => data?.articles ?? [], [data]);
 
   // Latest month with data (based on pub_date, not scored_at)
   const latest = useMemo(() => {
@@ -337,9 +326,9 @@ function ManadensArtikel() {
                 </div>
               )}
               <div className="space-y-4">
-                {list.map((a, i) => (
+                {list.map((a) => (
                   <CandidateCard
-                    key={`${a.url}-${i}`}
+                    key={a.pmid ?? a.url}
                     article={a}
                     onPrepare={() => setSearch({ prepare: a.url })}
                   />
@@ -365,9 +354,9 @@ function ManadensArtikel() {
               </p>
             </div>
             <div className="space-y-4">
-              {otherTopArticles.map((a, i) => (
+              {otherTopArticles.map((a) => (
                 <CandidateCard
-                  key={`other-${a.url}-${i}`}
+                  key={a.pmid ?? a.url}
                   article={a}
                   onPrepare={() => setSearch({ prepare: a.url })}
                 />

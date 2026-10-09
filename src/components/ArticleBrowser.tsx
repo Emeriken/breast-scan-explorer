@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import {
   ChevronDown,
@@ -37,7 +37,7 @@ import { categoryColor, externalLinkProps } from "@/lib/categories";
 import { Highlight } from "@/components/Highlight";
 import { JournalBadge } from "@/components/JournalBadge";
 import { MeshTags } from "@/components/MeshTags";
-import { pmidFromUrl, journalLevel, parsePubDate } from "@/lib/journals";
+import { pmidFromUrl, journalLevel, parsePubDate, formatPubDate } from "@/lib/journals";
 import { KiJlInfoTooltip } from "@/components/KiJlInfoTooltip";
 import { DisclaimerFooter } from "@/components/Footer";
 
@@ -52,6 +52,7 @@ export type DeepAnalysis = {
 } | null;
 
 export type Article = {
+  pmid?: string;
   title: string;
   journal: string;
   pub_date: string;
@@ -82,6 +83,17 @@ export async function fetchArticles(): Promise<ApiResponse> {
   return res.json();
 }
 
+/**
+ * Gemensam fråga för alla vyer. Datafilen ändras sällan, så den hämtas inte
+ * om vid varje flikbyte eller fokusbyte. Knappen Uppdatera hämtar alltid färskt.
+ */
+export const articlesQueryOptions = queryOptions({
+  queryKey: ["articles"],
+  queryFn: fetchArticles,
+  staleTime: 30 * 60 * 1000,
+  refetchOnWindowFocus: false,
+});
+
 export function formatDate(iso?: string) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -99,7 +111,7 @@ export function PubDateDisplay({ pubDate }: { pubDate?: string }) {
   const isFuture = ms > Date.now() + 30 * 24 * 60 * 60 * 1000;
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span>{formatDate(pubDate) || pubDate}</span>
+      <span>{formatPubDate(pubDate)}</span>
       {isFuture && (
         <span
           className="rounded-sm border border-amber-200/60 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"
@@ -390,11 +402,7 @@ function ArticleCard({ article, query }: { article: Article; query: string }) {
 type QuickFilter = "score5" | "score4plus" | "thisMonth" | "last30" | "l3only";
 
 export function ArticleBrowser() {
-  const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["articles"],
-    queryFn: fetchArticles,
-    staleTime: 60_000,
-  });
+  const { data, isLoading, error, refetch, isFetching } = useQuery(articlesQueryOptions);
 
   const search = useSearch({ from: "/" }) as { mesh?: string };
   const navigate = useNavigate({ from: "/" });
@@ -416,7 +424,7 @@ export function ArticleBrowser() {
     setQuick(next);
   };
 
-  const articles = data?.articles ?? [];
+  const articles = useMemo(() => data?.articles ?? [], [data]);
 
   const allCategories = useMemo(
     () => Array.from(new Set(articles.map((a) => a.category).filter(Boolean))).sort(),
@@ -829,8 +837,8 @@ export function ArticleBrowser() {
         )}
 
         <div className="space-y-4">
-          {filtered.map((a, i) => (
-            <ArticleCard key={`${a.url}-${i}`} article={a} query={query} />
+          {filtered.map((a) => (
+            <ArticleCard key={a.pmid ?? a.url} article={a} query={query} />
           ))}
         </div>
       </main>

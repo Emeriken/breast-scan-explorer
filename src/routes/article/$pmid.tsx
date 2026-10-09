@@ -7,7 +7,7 @@ import { NavTabs } from "@/components/NavTabs";
 import { JournalBadge } from "@/components/JournalBadge";
 import { MeshTags } from "@/components/MeshTags";
 import {
-  fetchArticles,
+  articlesQueryOptions,
   CategoryTag,
   Stars,
   PubDateDisplay,
@@ -31,13 +31,9 @@ export const Route = createFileRoute("/article/$pmid")({
 
 function ArticleDetail() {
   const { pmid } = Route.useParams();
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["articles"],
-    queryFn: fetchArticles,
-    staleTime: 60_000,
-  });
+  const { data, isLoading, error, refetch } = useQuery(articlesQueryOptions);
 
-  const article = data?.articles.find((a) => pmidFromUrl(a.url) === pmid);
+  const article = data?.articles.find((a) => (a.pmid ?? pmidFromUrl(a.url)) === pmid);
   const authors = article
     ? Array.isArray(article.authors)
       ? article.authors.join(", ")

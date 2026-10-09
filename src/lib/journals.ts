@@ -26,15 +26,82 @@ export function pmidFromUrl(url: string | undefined | null): string | null {
   return m ? m[1] : null;
 }
 
+const PUBMED_MONTHS: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+export type PubDateParts = {
+  year: number;
+  /** null när PubMed bara anger år */
+  month: number | null;
+  /** null när PubMed bara anger år eller månad */
+  day: number | null;
+  /** true för intervall som "2026 Jul-Aug" */
+  isRange: boolean;
+};
+
 /**
- * Tolka en PubMed-stil datumsträng (t.ex. "2026 May 20", "2026 Jun" eller
- * "2026") till en sorterbar timestamp. Returnerar 0 om strängen är tom eller
- * inte kan tolkas — då sorteras artikeln sist.
+ * Tolka PubMeds datumformat ("2026 May 20", "2026 May", "2026",
+ * "2026 Jul-Aug") och ISO-datum ("2026-05-20") utan Date.parse, som tolkar
+ * PubMed-strängar olika i olika webbläsare. Saknade delar blir null i stället
+ * för att fyllas i.
+ */
+export function parsePubDateParts(s: string | undefined | null): PubDateParts | null {
+  if (!s || typeof s !== "string") return null;
+  const str = s.trim();
+
+  const iso = str.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+  if (iso) {
+    const month = Number(iso[2]);
+    if (month < 1 || month > 12) return null;
+    const day = iso[3] ? Number(iso[3]) : null;
+    return { year: Number(iso[1]), month, day: day && day <= 31 ? day : null, isRange: false };
+  }
+
+  const pm = str.match(/^(\d{4})(?:\s+([A-Za-z]{3})[A-Za-z]*(-[A-Za-z]+)?(?:\s+(\d{1,2}))?)?/);
+  if (!pm) return null;
+  const year = Number(pm[1]);
+  const month = pm[2] ? (PUBMED_MONTHS[pm[2].toLowerCase()] ?? null) : null;
+  const rawDay = month !== null && pm[4] ? Number(pm[4]) : null;
+  const day = rawDay !== null && rawDay >= 1 && rawDay <= 31 ? rawDay : null;
+  return { year, month, day, isRange: month !== null && Boolean(pm[3]) };
+}
+
+/**
+ * Tolka en PubMed-stil datumsträng till en sorterbar timestamp (UTC).
+ * Saknad dag eller månad räknas som den första. Returnerar 0 om strängen är
+ * tom eller inte kan tolkas, så att artikeln sorteras sist.
  */
 export function parsePubDate(s: string | undefined | null): number {
-  if (!s) return 0;
-  const ms = Date.parse(s);
-  return isNaN(ms) ? 0 : ms;
+  const p = parsePubDateParts(s);
+  if (!p) return 0;
+  return Date.UTC(p.year, (p.month ?? 1) - 1, p.day ?? 1);
+}
+
+const DAY_FORMAT = new Intl.DateTimeFormat("sv-SE", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const MONTH_FORMAT = new Intl.DateTimeFormat("sv-SE", {
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/**
+ * Visa publiceringsdatum med exakt den precision PubMed anger:
+ * "2026 Oct 01" → "1 okt. 2026", "2026 Oct" → "okt. 2026", "2026" → "2026".
+ * Intervall och okända format visas som de står i källan.
+ */
+export function formatPubDate(s: string | undefined | null): string {
+  const p = parsePubDateParts(s);
+  if (!p || p.isRange) return s?.trim() ?? "";
+  if (p.month === null) return String(p.year);
+  const d = new Date(Date.UTC(p.year, p.month - 1, p.day ?? 1));
+  return p.day === null ? MONTH_FORMAT.format(d) : DAY_FORMAT.format(d);
 }
 
 /**
@@ -56,20 +123,16 @@ export function parsePubDateToMonth(
   pubDate: string | undefined | null,
   scoredAt?: string | undefined | null,
 ): { y: number; m: number } | null {
-  if (!pubDate || typeof pubDate !== "string") return null;
-  if (!/[A-Za-z]/.test(pubDate)) return null;
-  const t = Date.parse(pubDate);
-  if (isNaN(t)) return null;
-  const d = new Date(t);
-  const now = new Date();
+  const p = parsePubDateParts(pubDate);
+  if (!p || p.month === null) return null;
 
   // Framtidsdatum (typiskt ahead-of-print): fallback till scored_at
-  if (d.getTime() > now.getTime()) {
+  if (Date.UTC(p.year, p.month - 1, p.day ?? 1) > Date.now()) {
     if (!scoredAt) return null;
     const sd = new Date(scoredAt);
     if (isNaN(sd.getTime())) return null;
     return { y: sd.getFullYear(), m: sd.getMonth() + 1 };
   }
 
-  return { y: d.getFullYear(), m: d.getMonth() + 1 };
+  return { y: p.year, m: p.month };
 }

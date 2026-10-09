@@ -12,7 +12,7 @@ export default defineTool({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
   handler: async ({ pmid }) => {
     const { articles } = await fetchFeed();
-    const article = articles.find((a) => pmidFromUrl(a.url) === pmid);
+    const article = articles.find((a) => (a.pmid ?? pmidFromUrl(a.url)) === pmid);
     if (!article) {
       return {
         content: [{ type: "text", text: `Ingen artikel hittad för PMID ${pmid}.` }],
