@@ -2,6 +2,7 @@ const DATA_URL =
   "https://raw.githubusercontent.com/Emeriken/brostcancer-publik/main/public-index.json";
 
 export type Article = {
+  pmid?: string;
   title: string;
   journal: string;
   pub_date: string;

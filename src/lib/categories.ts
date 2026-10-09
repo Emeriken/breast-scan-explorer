@@ -78,11 +78,6 @@ export const externalLinkProps = {
   rel: "noopener noreferrer" as const,
 };
 
-export function isExternalHref(href: string | undefined | null): boolean {
-  if (!href) return false;
-  return /^https?:\/\//i.test(href);
-}
-
 /** Centrala diagramfärger för statistikvyn. */
 export const CHART_COLORS = {
   score: "#2563EB", // Fördelning av relevanspoäng

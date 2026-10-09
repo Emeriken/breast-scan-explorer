@@ -14,7 +14,7 @@ import {
   Line,
 } from "recharts";
 import { NavTabs } from "@/components/NavTabs";
-import { fetchArticles, formatDate } from "@/components/ArticleBrowser";
+import { articlesQueryOptions, formatDate } from "@/components/ArticleBrowser";
 import { categoryColor, CHART_COLORS } from "@/lib/categories";
 import { journalLevel } from "@/lib/journals";
 import { KiJlInfoTooltip } from "@/components/KiJlInfoTooltip";
@@ -34,13 +34,9 @@ export const Route = createFileRoute("/statistik")({
 });
 
 function StatistikPage() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["articles"],
-    queryFn: fetchArticles,
-    staleTime: 60_000,
-  });
+  const { data, isLoading, error } = useQuery(articlesQueryOptions);
 
-  const articles = data?.articles ?? [];
+  const articles = useMemo(() => data?.articles ?? [], [data]);
 
   const byCategory = useMemo(() => {
     const m = new Map<string, number>();
