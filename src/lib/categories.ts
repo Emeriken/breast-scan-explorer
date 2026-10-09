@@ -78,9 +78,14 @@ export const externalLinkProps = {
   rel: "noopener noreferrer" as const,
 };
 
-/** Centrala diagramfärger för statistikvyn. */
+/**
+ * Centrala diagramfärger för statistikvyn. Kategorifärgerna används bara i
+ * diagrammet per kategori, där de betyder kategori. Övriga diagram har en
+ * enda serie och använder en neutral färg.
+ */
 export const CHART_COLORS = {
-  score: "#2563EB", // Fördelning av relevanspoäng
-  journals: "#7C3AED", // Top tidskrifter
-  timeline: "#EA580C", // Artiklar per månad
+  bar: "#374151", // En serie (relevanspoäng, tidskrifter, nivåer, månader)
+  partial: "#9CA3AF", // Ofullständig period, t.ex. innevarande månad
+  tick: "#6B7280", // Axeltext
+  label: "#4B5563", // Värden vid staplarna
 };
