@@ -53,6 +53,8 @@ import {
 import { useNewArticles } from "@/hooks/use-new-articles";
 import { AiTag, NoticeBadge } from "@/components/Labels";
 import { DeepAnalysisList, hasDeepAnalysis } from "@/components/DeepAnalysis";
+import { RegulatoryBadges } from "@/components/RegulatoryBadges";
+import { attachRegulatory, authorLine, type ArticleRegulatory } from "@/lib/regulatory";
 
 export const DATA_URL =
   "https://raw.githubusercontent.com/Emeriken/brostcancer-publik/main/public-index.json";
@@ -78,6 +80,14 @@ export type Article = {
   why_relevant: string;
   deep_analysis: DeepAnalysis;
   scored_at: string;
+  /** Totalt antal författare (listan `authors` har max sex) */
+  author_count?: number;
+  /** Publikationstyper enligt PubMed, t.ex. "Retracted Publication" */
+  publication_types?: string[];
+  /** Nycklar till `regulatory_status.substances` (bara 4–5 poäng) */
+  regulatory_substances?: string[];
+  /** Validerad FDA/EMA-status, kopplas på i fetchArticles */
+  regulatory?: ArticleRegulatory;
 };
 
 export type ApiResponse = {
@@ -86,12 +96,15 @@ export type ApiResponse = {
   journals_tracked?: string[] | number;
   categories?: string[];
   articles: Article[];
+  regulatory_status?: unknown;
 };
 
 export async function fetchArticles(): Promise<ApiResponse> {
   const res = await fetch(DATA_URL, { cache: "no-store" });
   if (!res.ok) throw new Error(`Kunde inte hämta data (HTTP ${res.status})`);
-  return res.json();
+  const data = (await res.json()) as ApiResponse;
+  if (Array.isArray(data?.articles)) attachRegulatory(data.articles, data.regulatory_status);
+  return data;
 }
 
 /**
@@ -424,9 +437,7 @@ function ArticleCard({
   const [open, setOpen] = useState(false);
   const da = article.deep_analysis;
 
-  const authors = Array.isArray(article.authors)
-    ? article.authors.join(", ")
-    : article.authors;
+  const authors = authorLine(article.authors, article.author_count);
 
   const pmid = article.pmid ?? pmidFromUrl(article.url);
 
@@ -440,7 +451,7 @@ function ArticleCard({
                 Ny
               </span>
             )}
-            <NoticeBadge title={article.title} />
+            <NoticeBadge title={article.title} publicationTypes={article.publication_types} />
             <CategoryTag category={article.category} />
             <Stars score={article.relevance_score} />
           </div>
@@ -481,6 +492,8 @@ function ArticleCard({
             </span>
           )}
         </div>
+
+        <RegulatoryBadges reg={article.regulatory} />
 
         {article.why_relevant && (
           <p className="rounded-md border border-border/50 bg-muted/40 p-3 text-sm text-foreground/80">
