@@ -32,7 +32,6 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { NavTabs } from "@/components/NavTabs";
 import { categoryColor, externalLinkProps } from "@/lib/categories";
 import { Highlight } from "@/components/Highlight";
 import { JournalBadge } from "@/components/JournalBadge";
@@ -585,9 +584,6 @@ export function ArticleBrowser() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border/70 bg-background">
         <div className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
-          <div className="mb-4">
-            <NavTabs />
-          </div>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="min-w-0">
               <h1 className="text-2xl font-bold tracking-[-0.02em] sm:text-3xl">

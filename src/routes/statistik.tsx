@@ -13,7 +13,6 @@ import {
   LineChart,
   Line,
 } from "recharts";
-import { NavTabs } from "@/components/NavTabs";
 import { articlesQueryOptions, formatDate } from "@/components/ArticleBrowser";
 import { categoryColor, CHART_COLORS } from "@/lib/categories";
 import { journalLevel } from "@/lib/journals";
@@ -107,11 +106,8 @@ function StatistikPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/50 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
-          <div className="mb-4">
-            <NavTabs />
-          </div>
+      <header className="border-b border-border/70 bg-background">
+        <div className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             Statistik
           </h1>
@@ -121,7 +117,7 @@ function StatistikPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
+      <main className="mx-auto max-w-5xl space-y-6 px-4 py-6">
         {isLoading && (
           <div className="grid gap-4 sm:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
