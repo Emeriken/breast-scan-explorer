@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { NavTabs } from "@/components/NavTabs";
 import {
   articlesQueryOptions,
   CategoryTag,
@@ -178,11 +177,8 @@ function ManadensArtikel() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/50 backdrop-blur">
-        <div className="mx-auto max-w-4xl px-4 py-6 sm:py-8">
-          <div className="mb-4">
-            <NavTabs />
-          </div>
+      <header className="border-b border-border/70 bg-background">
+        <div className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             Månadens artikel
           </h1>
@@ -192,7 +188,7 @@ function ManadensArtikel() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-6">
+      <main className="mx-auto max-w-5xl px-4 py-6">
         <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
           <div className="grid gap-4 sm:grid-cols-3">
             <label className="text-sm">
@@ -584,104 +580,106 @@ function PrepareView({
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8 print:max-w-none print:px-0 print:py-0">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
-          <Button variant="ghost" size="sm" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4" />
-            Tillbaka till kandidater
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.print()}
-          >
-            <Printer className="h-4 w-4" />
-            Skriv ut
-          </Button>
-        </div>
-
-        <article className="rounded-xl border bg-card p-6 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <CategoryTag category={article.category} />
-            <Stars score={article.relevance_score} />
-            <Badge variant="secondary">
-              Relevans {Math.round(article.relevance_score)}/5
-            </Badge>
-          </div>
-          <h1 className="text-xl font-bold leading-tight sm:text-2xl">
-            <a
-              href={article.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline"
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:py-8 print:max-w-none print:px-0 print:py-0">
+        <div className="max-w-3xl print:max-w-none">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
+            <Button variant="ghost" size="sm" onClick={onBack}>
+              <ArrowLeft className="h-4 w-4" />
+              Tillbaka till kandidater
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.print()}
             >
-              {article.title}
-            </a>
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground/80">
-              {article.journal}
-            </span>{" "}
-            · <PubDateDisplay pubDate={article.pub_date} />
-            {article.doi && <span> · DOI: {article.doi}</span>}
-          </p>
-          {authors && (
-            <p className="mt-1 text-xs text-muted-foreground">{authors}</p>
-          )}
+              <Printer className="h-4 w-4" />
+              Skriv ut
+            </Button>
+          </div>
 
-          {article.why_relevant && (
-            <div className="mt-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Motivering
-              </h2>
-              <p className="mt-1 text-sm">{article.why_relevant}</p>
+          <article className="rounded-xl border bg-card p-6 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <CategoryTag category={article.category} />
+              <Stars score={article.relevance_score} />
+              <Badge variant="secondary">
+                Relevans {Math.round(article.relevance_score)}/5
+              </Badge>
             </div>
-          )}
+            <h1 className="text-xl font-bold leading-tight sm:text-2xl">
+              <a
+                href={article.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline"
+              >
+                {article.title}
+              </a>
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground/80">
+                {article.journal}
+              </span>{" "}
+              · <PubDateDisplay pubDate={article.pub_date} />
+              {article.doi && <span> · DOI: {article.doi}</span>}
+            </p>
+            {authors && (
+              <p className="mt-1 text-xs text-muted-foreground">{authors}</p>
+            )}
 
-          {da &&
-            (da.central_finding ||
-              da.limitation ||
-              da.vs_standard ||
-              da.applicability) && (
+            {article.why_relevant && (
               <div className="mt-4">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  Djupanalys
+                  Motivering
                 </h2>
-                <DeepAnalysisGrid da={da} />
+                <p className="mt-1 text-sm">{article.why_relevant}</p>
               </div>
             )}
-        </article>
 
-        <section className="mt-6 rounded-xl border bg-card p-6 shadow-sm print:mt-8 print:rounded-none print:border-0 print:p-0 print:shadow-none">
-          <h2 className="text-lg font-semibold">
-            Checklista — 15 minuter journal club
-          </h2>
-          <p className="mt-1 text-xs text-muted-foreground print:hidden">
-            Sparas automatiskt i den här webbläsaren.
-          </p>
-          <ul className="mt-4 space-y-3">
-            {CHECKLIST_ITEMS.map((item, i) => (
-              <li key={i} className="flex items-start gap-3">
-                <Checkbox
-                  id={`chk-${i}`}
-                  checked={checked[i]}
-                  onCheckedChange={() => toggle(i)}
-                  className="mt-0.5 print:hidden"
-                />
-                <span className="hidden h-4 w-4 shrink-0 rounded-sm border border-foreground print:inline-block" />
-                <label
-                  htmlFor={`chk-${i}`}
-                  className={cn(
-                    "text-sm leading-relaxed",
-                    checked[i] && "line-through text-muted-foreground print:no-underline print:text-foreground",
-                  )}
-                >
-                  {item}
-                </label>
-              </li>
-            ))}
-          </ul>
-        </section>
+            {da &&
+              (da.central_finding ||
+                da.limitation ||
+                da.vs_standard ||
+                da.applicability) && (
+                <div className="mt-4">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    Djupanalys
+                  </h2>
+                  <DeepAnalysisGrid da={da} />
+                </div>
+              )}
+          </article>
+
+          <section className="mt-6 rounded-xl border bg-card p-6 shadow-sm print:mt-8 print:rounded-none print:border-0 print:p-0 print:shadow-none">
+            <h2 className="text-lg font-semibold">
+              Checklista — 15 minuter journal club
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground print:hidden">
+              Sparas automatiskt i den här webbläsaren.
+            </p>
+            <ul className="mt-4 space-y-3">
+              {CHECKLIST_ITEMS.map((item, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <Checkbox
+                    id={`chk-${i}`}
+                    checked={checked[i]}
+                    onCheckedChange={() => toggle(i)}
+                    className="mt-0.5 print:hidden"
+                  />
+                  <span className="hidden h-4 w-4 shrink-0 rounded-sm border border-foreground print:inline-block" />
+                  <label
+                    htmlFor={`chk-${i}`}
+                    className={cn(
+                      "text-sm leading-relaxed",
+                      checked[i] && "line-through text-muted-foreground print:no-underline print:text-foreground",
+                    )}
+                  >
+                    {item}
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
       </div>
     </div>
   );
