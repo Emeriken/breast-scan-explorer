@@ -26,12 +26,14 @@ import { DisclaimerFooter } from "@/components/Footer";
 import { JournalBadge } from "@/components/JournalBadge";
 import { MeshTags } from "@/components/MeshTags";
 import { pmidFromUrl, parsePubDateToMonth } from "@/lib/journals";
-import { noticeType } from "@/lib/notices";
+import { noticeFor } from "@/lib/notices";
 import { AiTag } from "@/components/Labels";
 import { DeepAnalysisList, hasDeepAnalysis } from "@/components/DeepAnalysis";
+import { RegulatoryBadges, RegulatorySection } from "@/components/RegulatoryBadges";
+import { authorLine } from "@/lib/regulatory";
 
 /** Rättelser, indragningar och kommentarer är inte presentationskandidater. */
-const isCandidateMaterial = (a: Article) => noticeType(a.title) === null;
+const isCandidateMaterial = (a: Article) => noticeFor(a.title, a.publication_types) === null;
 
 type TreatmentKey = "cytotoxisk" | "endokrin" | "stralbehandling";
 
@@ -535,6 +537,8 @@ function CandidateCard({
           <JournalBadge journal={article.journal} />
         </div>
 
+        <RegulatoryBadges reg={article.regulatory} />
+
         {article.why_relevant && (
           <p className="rounded-lg bg-muted/60 p-3 text-sm text-foreground/80">
             <AiTag className="mr-1.5" />
@@ -643,9 +647,7 @@ function PrepareView({
   const toggle = (i: number) =>
     setChecked((arr) => arr.map((v, idx) => (idx === i ? !v : v)));
 
-  const authors = Array.isArray(article.authors)
-    ? article.authors.join(", ")
-    : article.authors;
+  const authors = authorLine(article.authors, article.author_count);
 
   const da = article.deep_analysis;
 
@@ -696,6 +698,8 @@ function PrepareView({
             {authors && (
               <p className="mt-1 text-xs text-muted-foreground">{authors}</p>
             )}
+
+            <RegulatorySection reg={article.regulatory} expanded className="mt-4" />
 
             {article.why_relevant && (
               <div className="mt-4">

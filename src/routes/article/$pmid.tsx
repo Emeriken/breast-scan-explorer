@@ -16,6 +16,8 @@ import { pmidFromUrl } from "@/lib/journals";
 import { DisclaimerFooter } from "@/components/Footer";
 import { AiTag, NoticeBadge } from "@/components/Labels";
 import { DeepAnalysisList, hasDeepAnalysis } from "@/components/DeepAnalysis";
+import { RegulatorySection } from "@/components/RegulatoryBadges";
+import { authorLine } from "@/lib/regulatory";
 
 export const Route = createFileRoute("/article/$pmid")({
   head: ({ params }) => ({
@@ -40,11 +42,7 @@ function ArticleDetail() {
   const goBack = () => (canGoBack ? router.history.back() : router.navigate({ to: "/" }));
 
   const article = data?.articles.find((a) => (a.pmid ?? pmidFromUrl(a.url)) === pmid);
-  const authors = article
-    ? Array.isArray(article.authors)
-      ? article.authors.join(", ")
-      : article.authors
-    : "";
+  const authors = article ? authorLine(article.authors, article.author_count) : "";
   const da = article?.deep_analysis;
 
   return (
@@ -82,7 +80,7 @@ function ArticleDetail() {
           {article && (
             <article className="rounded-xl border bg-card p-6 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                <NoticeBadge title={article.title} />
+                <NoticeBadge title={article.title} publicationTypes={article.publication_types} />
                 <CategoryTag category={article.category} />
                 <Stars score={article.relevance_score} />
                 <Badge variant="secondary" title="AI-bedömd relevans">
@@ -122,6 +120,8 @@ function ArticleDetail() {
                   </Button>
                 )}
               </div>
+
+              <RegulatorySection reg={article.regulatory} className="mt-5" />
 
               {article.why_relevant && (
                 <div className="mt-5">

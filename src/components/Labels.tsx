@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { noticeType, type NoticeKind } from "@/lib/notices";
+import { noticeFor, type NoticeKind } from "@/lib/notices";
 
 /** Förklaring som visas vid all AI-genererad text. */
 export const AI_NOTE =
@@ -29,13 +29,26 @@ const NOTICE_TONE: Record<NoticeKind, string> = {
   comment: "border-border bg-muted text-muted-foreground",
 };
 
-/** Märkning för rättelser, indragningar, förbehåll och kommentarer. Bygger på titeln. */
-export function NoticeBadge({ title }: { title: string }) {
-  const n = noticeType(title);
+/**
+ * Märkning för rättelser, indragningar, förbehåll och kommentarer. Bygger på
+ * titeln, utom indragna artiklar som PubMed själv har märkt.
+ */
+export function NoticeBadge({
+  title,
+  publicationTypes,
+}: {
+  title: string;
+  publicationTypes?: unknown;
+}) {
+  const n = noticeFor(title, publicationTypes);
   if (!n) return null;
   return (
     <span
-      title="Tolkat utifrån titeln. Publikationstypen står i PubMed."
+      title={
+        n.fromPubMed
+          ? "Artikeln har dragits tillbaka enligt PubMed (Retracted Publication)."
+          : "Tolkat utifrån titeln. Publikationstypen står i PubMed."
+      }
       className={cn(
         "rounded-sm border px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider",
         NOTICE_TONE[n.kind],
