@@ -4,12 +4,16 @@ import type { DeepAnalysis as DeepAnalysisData } from "@/components/ArticleBrows
 
 type Fields = NonNullable<DeepAnalysisData>;
 
-/** Fälten i djupanalysen, i visningsordning. Ändra här för att ändra överallt. */
+/**
+ * Fälten i djupanalysen, i visningsordning. Ändra här för att ändra överallt.
+ *
+ * "Jämfört med standard" (vs_standard) och "Tillämpbarhet" (applicability)
+ * visas inte: de är AI:ns egna kliniska tolkningar och inte en sammanfattning
+ * av vad artikeln rapporterar. Fälten finns kvar i datat och i MCP-verktygen.
+ */
 const FIELDS: [keyof Fields, string][] = [
   ["central_finding", "Centralt fynd"],
   ["limitation", "Begränsning"],
-  ["vs_standard", "Jämfört med standard"],
-  ["applicability", "Tillämpbarhet"],
 ];
 
 export function hasDeepAnalysis(da: DeepAnalysisData | undefined): da is Fields {
