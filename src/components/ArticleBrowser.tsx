@@ -130,8 +130,8 @@ export function ArticleBrowser() {
 
   const sort = search.sort ?? DEFAULT_SORT;
   const grouped = sort === "scored_at";
-  // Veckovis triage: 1–2 fälls ihop och 3 visas kompakt, så länge man inte
-  // söker efter något särskilt eller redan filtrerat på AI-relevans.
+  // Veckovis triage: 1–2 fälls ihop till rader, så länge man inte söker efter
+  // något särskilt eller redan filtrerat på AI-relevans.
   const triage = grouped && !query && !search.min && !search.score;
 
   const shown = Math.max(PAGE_SIZE, search.n ?? PAGE_SIZE);
@@ -179,13 +179,12 @@ export function ArticleBrowser() {
     return { added: res.data.articles.filter((a) => !before.has(articleId(a))).length };
   };
 
-  const renderCard = (a: Article, opts: { compact?: boolean; heading: 2 | 3 }) => (
+  const renderCard = (a: Article, opts: { heading: 2 | 3 }) => (
     <ArticleCard
       key={articleId(a)}
       article={a}
       query={query}
       listSearch={search}
-      density={opts.compact ? "compact" : "full"}
       showNew={!grouped && latest !== null && batchOf(a) === latest}
       headingLevel={opts.heading}
     />
@@ -344,9 +343,7 @@ export function ArticleBrowser() {
                     />
                     {!isCollapsed && (
                       <div className="space-y-4">
-                        {cards.map((a) =>
-                          renderCard(a, { compact: triage && scoreOf(a) === 3, heading: 3 }),
-                        )}
+                        {cards.map((a) => renderCard(a, { heading: 3 }))}
                         <LowRelevanceRows items={low} query={query} listSearch={search} />
                       </div>
                     )}

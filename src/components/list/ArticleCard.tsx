@@ -25,7 +25,6 @@ export function ArticleCard({
   article,
   query,
   listSearch,
-  density = "full",
   showNew,
   headingLevel = 3,
 }: {
@@ -33,8 +32,6 @@ export function ArticleCard({
   query: ParsedQuery | null;
   /** Listans filter, följer med till artikelsidan för Föregående/Nästa */
   listSearch: ArticleSearch;
-  /** "compact" kortar motiveringen till två rader (AI-relevans 3) */
-  density?: "full" | "compact";
   showNew?: boolean;
   headingLevel?: 2 | 3;
 }) {
@@ -101,12 +98,7 @@ export function ArticleCard({
         <RegulatoryBadges reg={article.regulatory} />
 
         {article.why_relevant && (
-          <p
-            className={cn(
-              "rounded-md border border-border/60 bg-muted/40 p-3 text-sm text-foreground/85",
-              density === "compact" && "line-clamp-2",
-            )}
-          >
+          <p className="rounded-md border border-border/60 bg-muted/40 p-3 text-sm text-foreground/85">
             <AiTag className="mr-1.5" />
             <span className="font-semibold text-foreground">Motivering: </span>
             <Highlight text={article.why_relevant} query={query} />
