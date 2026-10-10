@@ -14,10 +14,16 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { ShortcutsProvider } from "../components/ShortcutsProvider";
 import { SiteHeader } from "../components/NavTabs";
+import { PRODUCT_NAME } from "../lib/articles";
+import { THEME_INIT_SCRIPT } from "../lib/theme";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-[60vh] items-center justify-center bg-background px-4">
+    <div
+      id="content"
+      tabIndex={-1}
+      className="flex min-h-[60vh] items-center justify-center bg-background px-4 outline-none"
+    >
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
         <h2 className="mt-4 text-xl font-semibold text-foreground">Sidan hittades inte</h2>
@@ -80,15 +86,27 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Bröstcancer-bevakning" },
-      { name: "description", content: "Webbplats för att utforska AI-bedömda bröstcancerartiklar med filtrering och sökning." },
+      { title: PRODUCT_NAME },
+      {
+        name: "description",
+        content:
+          "Webbplats för att utforska AI-bedömda bröstcancerartiklar med filtrering och sökning.",
+      },
       { name: "author", content: "SÖS Onkologen" },
-      { property: "og:title", content: "Bröstcancer-bevakning" },
-      { property: "og:description", content: "Webbplats för att utforska AI-bedömda bröstcancerartiklar med filtrering och sökning." },
+      { property: "og:title", content: PRODUCT_NAME },
+      {
+        property: "og:description",
+        content:
+          "Webbplats för att utforska AI-bedömda bröstcancerartiklar med filtrering och sökning.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:title", content: "Bröstcancer-bevakning" },
-      { name: "twitter:description", content: "Webbplats för att utforska AI-bedömda bröstcancerartiklar med filtrering och sökning." },
+      { name: "twitter:title", content: PRODUCT_NAME },
+      {
+        name: "twitter:description",
+        content:
+          "Webbplats för att utforska AI-bedömda bröstcancerartiklar med filtrering och sökning.",
+      },
     ],
     links: [
       {
@@ -111,8 +129,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="sv">
+    <html lang="sv" suppressHydrationWarning>
       <head>
+        {/* Sätter mörkt tema innan sidan ritas, så att den inte blinkar ljust */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>

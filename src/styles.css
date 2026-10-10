@@ -95,28 +95,34 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  /* Diagram (Statistik): en serie, axeltext, värden, rutnät */
+  --chart-bar: oklch(0.37 0.012 250);
+  --chart-partial: oklch(0.74 0.008 250);
+  --chart-tick: oklch(0.52 0.01 250);
+  --chart-label: oklch(0.42 0.01 250);
+  --chart-grid: oklch(0.91 0.004 250);
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
+  --background: oklch(0.17 0.006 250);
+  --foreground: oklch(0.95 0.004 80);
+  --card: oklch(0.21 0.007 250);
+  --card-foreground: oklch(0.95 0.004 80);
+  --popover: oklch(0.23 0.008 250);
+  --popover-foreground: oklch(0.95 0.004 80);
+  --primary: oklch(0.95 0.004 80);
+  --primary-foreground: oklch(0.2 0.008 250);
+  --secondary: oklch(0.28 0.008 250);
+  --secondary-foreground: oklch(0.95 0.004 80);
+  --muted: oklch(0.27 0.008 250);
+  --muted-foreground: oklch(0.74 0.01 250);
+  --accent: oklch(0.3 0.009 250);
+  --accent-foreground: oklch(0.97 0.004 80);
+  --destructive: oklch(0.7 0.19 22.2);
+  --destructive-foreground: oklch(0.98 0.003 250);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.85 0.01 250);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -130,11 +136,40 @@
   --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.551 0.027 264.364);
+  --chart-bar: oklch(0.8 0.01 250);
+  --chart-partial: oklch(0.52 0.01 250);
+  --chart-tick: oklch(0.74 0.01 250);
+  --chart-label: oklch(0.86 0.008 250);
+  --chart-grid: oklch(1 0 0 / 14%);
 }
 
 @layer base {
   * {
     border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  /*
+   * En och samma fokusmarkering för tangentbordet överallt: 2 px ring med
+   * 2 px luft, så att den syns även runt ifyllda knappar.
+   */
+  :where(a[href], button, input, select, textarea, summary, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* Webbläsarens egen rensa-knapp i sökfält; vi visar en egen */
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
   }
 
   body {
@@ -144,5 +179,30 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01", "tnum";
     line-height: 1.6;
     font-size: 15px;
+  }
+}
+
+/* Metadata (författare, datum, länkar): minst 13 px */
+@utility text-meta {
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+/*
+ * Träffyta på minst 44 x 44 px på pekskärm, utan att kontrollen ser större ut.
+ * Elementet får position: relative; använd inte på absolut placerade element.
+ */
+@utility hit-area {
+  position: relative;
+  @media (pointer: coarse) {
+    &::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: max(100%, 44px);
+      height: max(100%, 44px);
+      transform: translate(-50%, -50%);
+    }
   }
 }

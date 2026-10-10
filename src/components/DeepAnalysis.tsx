@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { AI_NOTE, AiTag } from "@/components/Labels";
-import type { DeepAnalysis as DeepAnalysisData } from "@/components/ArticleBrowser";
+import type { DeepAnalysis as DeepAnalysisData } from "@/lib/articles";
 
 type Fields = NonNullable<DeepAnalysisData>;
 
@@ -37,7 +37,7 @@ export function DeepAnalysisList({ da, className }: { da: Fields; className?: st
         )}
       </dl>
       <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-        <AiTag />
+        <AiTag static />
         {AI_NOTE} Kontrollera mot originalartikeln.
       </p>
     </div>

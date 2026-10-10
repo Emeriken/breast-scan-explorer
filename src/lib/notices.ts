@@ -18,7 +18,7 @@ const RULES: { kind: NoticeKind; label: string; re: RegExp }[] = [
   },
   {
     kind: "concern",
-    label: "Expression of concern",
+    label: "Förbehåll",
     re: /^\W*(editorial )?expression of concern\b/i,
   },
   {

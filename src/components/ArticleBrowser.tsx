@@ -1,551 +1,68 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { queryOptions, useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import {
-  ChevronDown,
-  Search,
-  Star,
-  ExternalLink,
-  RefreshCw,
-  SlidersHorizontal,
-  X,
-} from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
-import { categoryColor, externalLinkProps } from "@/lib/categories";
-import { Highlight } from "@/components/Highlight";
-import { JournalBadge } from "@/components/JournalBadge";
-import { MeshTags } from "@/components/MeshTags";
-import { pmidFromUrl, journalLevel, parsePubDate, formatPubDate } from "@/lib/journals";
-import { KiJlInfoTooltip } from "@/components/KiJlInfoTooltip";
 import { DisclaimerFooter } from "@/components/Footer";
+import { ErrorState } from "@/components/ErrorState";
+import { Legend } from "@/components/Legend";
+import { ArticleCard } from "@/components/list/ArticleCard";
+import { LowRelevanceRows } from "@/components/list/LowRelevanceRows";
+import { StatusBar } from "@/components/list/StatusBar";
+import { Toolbar } from "@/components/list/Toolbar";
+import { filterChips } from "@/components/list/filterChips";
+import { DEFAULT_SORT, PAGE_SIZE, type ArticleSearch } from "@/lib/article-search";
+import { articleId, articlesQueryOptions, formatDay, type Article } from "@/lib/articles";
 import {
-  DEFAULT_SORT,
-  PAGE_SIZE,
-  SORT_KEYS,
-  SORT_LABELS,
-  type ArticleSearch,
-  type SortKey,
-} from "@/lib/article-search";
-import { useNewArticles } from "@/hooks/use-new-articles";
-import { AiTag, NoticeBadge } from "@/components/Labels";
-import { DeepAnalysisList, hasDeepAnalysis } from "@/components/DeepAnalysis";
-import { RegulatoryBadges } from "@/components/RegulatoryBadges";
-import { attachRegulatory, authorLine, type ArticleRegulatory } from "@/lib/regulatory";
+  batchOf,
+  groupByBatch,
+  latestBatchKey,
+  listArticles,
+  scoreOf,
+  type Batch,
+} from "@/lib/article-list";
+import { SEARCHED_FIELDS, parseQuery, withoutTerm } from "@/lib/search";
+import { cn } from "@/lib/utils";
 
-export const DATA_URL =
-  "https://raw.githubusercontent.com/Emeriken/brostcancer-publik/main/public-index.json";
-
-export type DeepAnalysis = {
-  central_finding?: string;
-  limitation?: string;
-  vs_standard?: string;
-  applicability?: string;
-} | null;
-
-export type Article = {
-  pmid?: string;
-  title: string;
-  journal: string;
-  pub_date: string;
-  authors?: string | string[];
-  url: string;
-  doi?: string;
-  mesh_terms?: string[];
-  relevance_score: number;
-  category: string;
-  why_relevant: string;
-  deep_analysis: DeepAnalysis;
-  scored_at: string;
-  /** Totalt antal författare (listan `authors` har max sex) */
-  author_count?: number;
-  /** Publikationstyper enligt PubMed, t.ex. "Retracted Publication" */
-  publication_types?: string[];
-  /** Nycklar till `regulatory_status.substances` (bara 4–5 poäng) */
-  regulatory_substances?: string[];
-  /** Validerad FDA/EMA-status, kopplas på i fetchArticles */
-  regulatory?: ArticleRegulatory;
-};
-
-export type ApiResponse = {
-  updated?: string;
-  article_count?: number;
-  journals_tracked?: string[] | number;
-  categories?: string[];
-  articles: Article[];
-  regulatory_status?: unknown;
-};
-
-export async function fetchArticles(): Promise<ApiResponse> {
-  const res = await fetch(DATA_URL, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Kunde inte hämta data (HTTP ${res.status})`);
-  const data = (await res.json()) as ApiResponse;
-  if (Array.isArray(data?.articles)) attachRegulatory(data.articles, data.regulatory_status);
-  return data;
-}
-
-/**
- * Gemensam fråga för alla vyer. Datafilen ändras sällan, så den hämtas inte
- * om vid varje flikbyte eller fokusbyte. Knappen Uppdatera hämtar alltid färskt.
- */
-export const articlesQueryOptions = queryOptions({
-  queryKey: ["articles"],
-  queryFn: fetchArticles,
-  staleTime: 30 * 60 * 1000,
-  refetchOnWindowFocus: false,
-});
-
-export function formatDate(iso?: string) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("sv-SE", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-export function PubDateDisplay({ pubDate }: { pubDate?: string }) {
-  if (!pubDate) return null;
-  const ms = parsePubDate(pubDate);
-  const isFuture = ms > Date.now() + 30 * 24 * 60 * 60 * 1000;
+/** Rubrik för en vecka, t.ex. "Tillagda mån 5 okt." med antal. */
+function BatchHeader({
+  batch,
+  isLatest,
+  collapsed,
+  onToggle,
+}: {
+  batch: Batch;
+  isLatest: boolean;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  const top = batch.items.filter((a) => scoreOf(a) >= 4).length;
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span>{formatPubDate(pubDate)}</span>
-      {isFuture && (
-        <span
-          className="rounded-sm border border-amber-200/60 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"
-          title="Publiceringsdatum ligger i framtiden — sannolikt redan tillgänglig online som 'ahead of print'"
+    <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border/70 pb-2">
+      <h2 className="text-base font-semibold">
+        <button
+          type="button"
+          aria-expanded={!collapsed}
+          onClick={onToggle}
+          className="hit-area inline-flex items-center gap-1.5 rounded-sm text-left hover:text-foreground/80"
         >
-          Ahead of print
-        </span>
-      )}
-    </span>
-  );
-}
-
-export function CategoryTag({ category }: { category: string }) {
-  const c = categoryColor(category);
-  return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-      <span
-        aria-hidden
-        className="inline-block h-2 w-2 rounded-full"
-        style={{ backgroundColor: c.solid }}
-      />
-      {category}
-    </span>
-  );
-}
-
-export function Stars({ score }: { score: number }) {
-  const n = Math.max(0, Math.min(5, Math.round(score)));
-  return (
-    <div
-      className="flex items-center gap-0.5"
-      role="img"
-      aria-label={`AI-bedömd relevans ${n} av 5`}
-      title={`AI-bedömd relevans ${n} av 5`}
-    >
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star
-          key={i}
-          aria-hidden
-          className={cn(
-            "h-3.5 w-3.5",
-            i < n
-              ? "fill-amber-500 text-amber-500"
-              : "text-muted-foreground/25",
-          )}
-        />
-      ))}
-    </div>
-  );
-}
-
-function articleId(a: Article) {
-  return a.pmid ?? a.url;
-}
-
-/** Datum som "ÅÅÅÅ-MM-DD" i lokal tid, jämförbart med scored_at som sträng. */
-function isoDay(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-type SegmentOption<T> = { value: T; label: string };
-
-function Segmented<T extends string | number | undefined>({
-  label,
-  value,
-  options,
-  onChange,
-  info,
-  fill,
-}: {
-  label: string;
-  value: T;
-  options: SegmentOption<T>[];
-  onChange: (v: T) => void;
-  info?: ReactNode;
-  fill?: boolean;
-}) {
-  return (
-    <div className={cn("flex flex-col gap-1", fill && "w-full")}>
-      <span className="flex h-6 items-center gap-1 text-xs font-medium text-muted-foreground">
-        {label}
-        {info}
-      </span>
-      <div
-        role="group"
-        aria-label={label}
-        className={cn(
-          "inline-flex h-9 rounded-md border border-border bg-background p-0.5",
-          fill && "flex w-full",
-        )}
-      >
-        {options.map((o) => {
-          const active = value === o.value;
-          return (
-            <button
-              key={String(o.value)}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onChange(o.value)}
-              className={cn(
-                "whitespace-nowrap rounded-[5px] px-3 text-xs font-medium transition-colors",
-                fill && "flex-1",
-                active
-                  ? "bg-foreground text-background"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              {o.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function MultiSelect({
-  label,
-  options,
-  selected,
-  onChange,
-  fill,
-}: {
-  label: string;
-  options: string[];
-  selected: string[];
-  onChange: (s: string[]) => void;
-  fill?: boolean;
-}) {
-  const selectedSet = new Set(selected);
-  const toggle = (v: string) => {
-    const next = new Set(selectedSet);
-    if (next.has(v)) next.delete(v);
-    else next.add(v);
-    onChange(options.filter((o) => next.has(o)));
-  };
-  return (
-    <div className={cn("flex flex-col gap-1", fill && "w-full")}>
-      <span className="flex h-6 items-center text-xs font-medium text-muted-foreground">
-        {label}
-      </span>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn("h-9 min-w-[9rem] justify-between gap-2 font-normal", fill && "w-full")}
-          >
-            <span className="truncate">
-              {selected.length === 0
-                ? "Alla"
-                : selected.length === 1
-                  ? selected[0]
-                  : `${selected.length} valda`}
-            </span>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-72 p-0" align="start">
-          <div className="max-h-72 overflow-y-auto p-2">
-            {options.length === 0 ? (
-              <p className="p-2 text-sm text-muted-foreground">Inga val tillgängliga</p>
-            ) : (
-              options.map((opt) => (
-                <label
-                  key={opt}
-                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent"
-                >
-                  <Checkbox
-                    checked={selectedSet.has(opt)}
-                    onCheckedChange={() => toggle(opt)}
-                  />
-                  <span className="truncate">{opt}</span>
-                </label>
-              ))
-            )}
-          </div>
-          {selected.length > 0 && (
-            <div className="border-t p-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full"
-                onClick={() => onChange([])}
-              >
-                Rensa {label.toLowerCase()}
-              </Button>
-            </div>
-          )}
-        </PopoverContent>
-      </Popover>
-    </div>
-  );
-}
-
-function FilterControls({
-  search,
-  update,
-  categories,
-  journals,
-  variant,
-}: {
-  search: ArticleSearch;
-  update: (patch: Partial<ArticleSearch>) => void;
-  categories: string[];
-  journals: string[];
-  variant: "inline" | "sheet";
-}) {
-  const fill = variant === "sheet";
-  const row = fill ? "contents" : "flex flex-wrap items-end gap-x-4 gap-y-3";
-  return (
-    <div className={cn(fill ? "flex flex-col gap-4" : "flex flex-col gap-3")}>
-      <div className={row}>
-        <Segmented
-          label="Relevans"
-          value={search.min}
-          options={[
-            { value: undefined, label: "Alla" },
-            { value: 4, label: "4–5" },
-            { value: 5, label: "5" },
-          ]}
-          onChange={(v) => update({ min: v })}
-          fill={fill}
-        />
-        <Segmented
-          label="Bedömd"
-          value={search.period}
-          options={[
-            { value: undefined, label: "Alla" },
-            { value: "month", label: "Denna månad" },
-            { value: "30d", label: "30 dagar" },
-          ]}
-          onChange={(v) => update({ period: v })}
-          fill={fill}
-        />
-        <Segmented
-          label="Tidskriftsnivå"
-          info={<KiJlInfoTooltip />}
-          value={search.level}
-          options={[
-            { value: undefined, label: "Alla" },
-            { value: 2, label: "L2–L3" },
-            { value: 3, label: "L3" },
-          ]}
-          onChange={(v) => update({ level: v })}
-          fill={fill}
-        />
-      </div>
-      <div className={row}>
-        <MultiSelect
-          label="Kategori"
-          options={categories}
-          selected={search.cat ?? []}
-          onChange={(v) => update({ cat: v.length ? v : undefined })}
-          fill={fill}
-        />
-        <MultiSelect
-          label="Tidskrift"
-          options={journals}
-          selected={search.journal ?? []}
-          onChange={(v) => update({ journal: v.length ? v : undefined })}
-          fill={fill}
-        />
-        <div className={cn("flex flex-col gap-1", fill && "w-full")}>
-          <span className="flex h-6 items-center text-xs font-medium text-muted-foreground">
-            Sortering
-          </span>
-          <Select
-            value={search.sort ?? DEFAULT_SORT}
-            onValueChange={(v) =>
-              update({ sort: v === DEFAULT_SORT ? undefined : (v as SortKey) })
-            }
-          >
-            <SelectTrigger className={cn("h-9", fill ? "w-full" : "w-[11.5rem]")} aria-label="Sortering">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SORT_KEYS.map((k) => (
-                <SelectItem key={k} value={k}>
-                  {SORT_LABELS[k]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ArticleCard({
-  article,
-  query,
-  isNew,
-}: {
-  article: Article;
-  query: string;
-  isNew: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const da = article.deep_analysis;
-
-  const authors = authorLine(article.authors, article.author_count);
-
-  const pmid = article.pmid ?? pmidFromUrl(article.url);
-
-  return (
-    <article className="rounded-lg border border-neutral-200/70 bg-card p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_1px_1px_rgba(0,0,0,0.06)] transition-all duration-200 hover:border-neutral-300 hover:shadow-md sm:p-6">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            {isNew && (
-              <span className="rounded-sm bg-foreground px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-background">
-                Ny
-              </span>
-            )}
-            <NoticeBadge title={article.title} publicationTypes={article.publication_types} />
-            <CategoryTag category={article.category} />
-            <Stars score={article.relevance_score} />
-          </div>
-          <span className="text-xs text-muted-foreground">
-            <PubDateDisplay pubDate={article.pub_date} />
-          </span>
-        </div>
-
-        <h2 className="text-base font-semibold leading-[1.35] tracking-[-0.01em] sm:text-lg">
-          {pmid ? (
-            <Link
-              to="/article/$pmid"
-              params={{ pmid }}
-              className="text-foreground hover:underline"
-            >
-              <Highlight text={article.title} query={query} />
-            </Link>
-          ) : (
-            <a
-              href={article.url}
-              {...externalLinkProps}
-              className="text-foreground hover:underline"
-            >
-              <Highlight text={article.title} query={query} />
-              <ExternalLink className="ml-1 inline h-3.5 w-3.5 align-baseline opacity-60" />
-            </a>
-          )}
-        </h2>
-
-        <div className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground/80">
-            <Highlight text={article.journal} query={query} />
-          </span>
-          <JournalBadge journal={article.journal} />
-          {authors && (
-            <span className="mt-0.5 block line-clamp-1 text-xs">
-              <Highlight text={authors} query={query} />
+          <ChevronDown
+            aria-hidden
+            className={cn("h-4 w-4 shrink-0 transition-transform", collapsed && "-rotate-90")}
+          />
+          Tillagda {batch.key ? formatDay(batch.key) : "okänt datum"}
+          {isLatest && (
+            <span className="ml-1 rounded-sm bg-foreground px-1.5 text-xs font-semibold uppercase leading-5 tracking-wider text-background">
+              Senaste
             </span>
           )}
-        </div>
-
-        <RegulatoryBadges reg={article.regulatory} />
-
-        {article.why_relevant && (
-          <p className="rounded-md border border-border/50 bg-muted/40 p-3 text-sm text-foreground/80">
-            <AiTag className="mr-1.5" />
-            <span className="font-semibold text-foreground">Motivering: </span>
-            <Highlight text={article.why_relevant} query={query} />
-          </p>
-        )}
-
-        {hasDeepAnalysis(da) && (
-          <div>
-            <button
-              type="button"
-              onClick={() => setOpen((v) => !v)}
-              className="inline-flex min-h-8 items-center gap-1 text-sm font-medium text-foreground/80 hover:text-foreground hover:underline"
-              aria-expanded={open}
-            >
-              <ChevronDown
-                className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
-              />
-              {open ? "Dölj djupanalys" : "Visa djupanalys"}
-            </button>
-            {open && (
-              <>
-                <DeepAnalysisList da={da} className="mt-3" />
-                {article.mesh_terms && article.mesh_terms.length > 0 && (
-                  <div className="mt-3">
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      MeSH-termer
-                    </p>
-                    <MeshTags terms={article.mesh_terms} />
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {article.doi && (
-          <div className="text-xs text-muted-foreground">
-            DOI:{" "}
-            <a
-              href={`https://doi.org/${article.doi}`}
-              {...externalLinkProps}
-              className="underline-offset-2 hover:underline"
-            >
-              {article.doi}
-            </a>
-          </div>
-        )}
-      </div>
-    </article>
+        </button>
+      </h2>
+      <p className="text-meta text-muted-foreground">
+        {batch.items.length} {batch.items.length === 1 ? "artikel" : "artiklar"}
+        {top > 0 && ` · ${top} med AI-relevans 4–5`}
+      </p>
+    </div>
   );
 }
 
@@ -559,6 +76,13 @@ export function ArticleBrowser() {
   const update = (patch: Partial<ArticleSearch>) =>
     navigate({
       search: (prev: ArticleSearch) => ({ ...prev, n: undefined, ...patch }),
+      replace: true,
+      resetScroll: false,
+    });
+
+  const resetAll = () =>
+    navigate({
+      search: (prev: ArticleSearch) => ({ sort: prev.sort }),
       replace: true,
       resetScroll: false,
     });
@@ -587,8 +111,8 @@ export function ArticleBrowser() {
   }, [queryInput]);
 
   const articles = useMemo(() => data?.articles ?? [], [data]);
-  const ids = useMemo(() => articles.map(articleId), [articles]);
-  const newIds = useNewArticles(ids);
+  const latest = useMemo(() => latestBatchKey(articles), [articles]);
+  const query = useMemo(() => parseQuery(search.q), [search.q]);
 
   const allCategories = useMemo(
     () => Array.from(new Set(articles.map((a) => a.category).filter(Boolean))).sort(),
@@ -599,355 +123,252 @@ export function ArticleBrowser() {
     [articles],
   );
 
-  const appliedQuery = search.q ?? "";
+  const filtered = useMemo(
+    () => listArticles(articles, search, { latest, query }),
+    [articles, search, latest, query],
+  );
+
   const sort = search.sort ?? DEFAULT_SORT;
-
-  const filtered = useMemo(() => {
-    const q = appliedQuery.trim().toLowerCase();
-    const cats = new Set(search.cat ?? []);
-    const journals = new Set(search.journal ?? []);
-    const now = new Date();
-    const monthStart = isoDay(new Date(now.getFullYear(), now.getMonth(), 1));
-    const last30Start = isoDay(new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000));
-    const meshLower = (search.mesh ?? "").toLowerCase();
-
-    const list = articles.filter((a) => {
-      if (cats.size > 0 && !cats.has(a.category)) return false;
-      if (journals.size > 0 && !journals.has(a.journal)) return false;
-      if (search.min && Math.round(a.relevance_score) < search.min) return false;
-      if (search.level) {
-        const lvl = journalLevel(a.journal);
-        if (lvl === null || lvl < search.level) return false;
-      }
-      if (search.period) {
-        const scored = (a.scored_at ?? "").slice(0, 10);
-        if (!scored) return false;
-        if (search.period === "month" && scored < monthStart) return false;
-        if (search.period === "30d" && scored < last30Start) return false;
-      }
-      if (meshLower) {
-        const terms = (a.mesh_terms ?? []).map((t) =>
-          t.replace(/\*$/, "").trim().toLowerCase(),
-        );
-        if (!terms.includes(meshLower)) return false;
-      }
-      if (q) {
-        const authorsStr = Array.isArray(a.authors)
-          ? a.authors.join(" ")
-          : (a.authors ?? "");
-        const hay =
-          `${a.title} ${a.why_relevant} ${a.journal} ${authorsStr}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-
-    return [...list].sort((a, b) => {
-      switch (sort) {
-        case "score":
-          return b.relevance_score - a.relevance_score;
-        case "pub_date":
-          return parsePubDate(b.pub_date) - parsePubDate(a.pub_date);
-        case "journal":
-          return a.journal.localeCompare(b.journal, "sv");
-        case "scored_at":
-        default: {
-          const cmp = (b.scored_at ?? "").localeCompare(a.scored_at ?? "");
-          if (cmp !== 0) return cmp;
-          return parsePubDate(b.pub_date) - parsePubDate(a.pub_date);
-        }
-      }
-    });
-  }, [articles, appliedQuery, sort, search.cat, search.journal, search.min, search.level, search.period, search.mesh]);
+  const grouped = sort === "scored_at";
+  // Veckovis triage: 1–2 fälls ihop och 3 visas kompakt, så länge man inte
+  // söker efter något särskilt eller redan filtrerat på AI-relevans.
+  const triage = grouped && !query && !search.min && !search.score;
 
   const shown = Math.max(PAGE_SIZE, search.n ?? PAGE_SIZE);
-  const visible = filtered.slice(0, shown);
-  const remaining = filtered.length - visible.length;
-  const newCount = useMemo(
-    () => articles.filter((a) => newIds.has(articleId(a))).length,
-    [articles, newIds],
+  const { batches, visibleCount } = useMemo(() => {
+    if (!grouped) return { batches: [] as Batch[], visibleCount: Math.min(shown, filtered.length) };
+    // Hela veckor åt gången, tills minst `shown` artiklar visas
+    const all = groupByBatch(filtered);
+    const out: Batch[] = [];
+    let count = 0;
+    for (const b of all) {
+      if (count >= shown) break;
+      out.push(b);
+      count += b.items.length;
+    }
+    return { batches: out, visibleCount: count };
+  }, [grouped, filtered, shown]);
+  const flatVisible = grouped ? [] : filtered.slice(0, shown);
+  const remaining = filtered.length - visibleCount;
+
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const toggleBatch = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const latestItems = useMemo(
+    () => (latest ? articles.filter((a) => batchOf(a) === latest) : []),
+    [articles, latest],
   );
 
   const journalsTracked = Array.isArray(data?.journals_tracked)
     ? data.journals_tracked.length
     : data?.journals_tracked;
 
-  // Aktiva filter, som chips i tomläget och som räknare
-  type Chip = { label: string; clear: () => void };
-  const chips: Chip[] = [];
-  if (search.q) chips.push({ label: `Sök: "${search.q}"`, clear: () => update({ q: undefined }) });
-  if (search.mesh)
-    chips.push({ label: `MeSH: ${search.mesh}`, clear: () => update({ mesh: undefined }) });
-  for (const c of search.cat ?? [])
-    chips.push({
-      label: `Kategori: ${c}`,
-      clear: () => {
-        const rest = (search.cat ?? []).filter((x) => x !== c);
-        update({ cat: rest.length ? rest : undefined });
-      },
-    });
-  for (const j of search.journal ?? [])
-    chips.push({
-      label: `Tidskrift: ${j}`,
-      clear: () => {
-        const rest = (search.journal ?? []).filter((x) => x !== j);
-        update({ journal: rest.length ? rest : undefined });
-      },
-    });
-  if (search.min)
-    chips.push({
-      label: search.min === 5 ? "Relevans 5" : "Relevans 4–5",
-      clear: () => update({ min: undefined }),
-    });
-  if (search.period)
-    chips.push({
-      label: search.period === "month" ? "Bedömd denna månad" : "Bedömd senaste 30 dagarna",
-      clear: () => update({ period: undefined }),
-    });
-  if (search.level)
-    chips.push({
-      label: search.level === 3 ? "Tidskriftsnivå L3" : "Tidskriftsnivå L2–L3",
-      clear: () => update({ level: undefined }),
-    });
-  const filterCount = chips.length;
+  const chips = filterChips(search, update);
+  const meshIndexed = articles.filter((a) => (a.mesh_terms ?? []).length > 0).length;
 
-  const resetAll = () =>
-    navigate({
-      search: (prev: ArticleSearch) => ({ sort: prev.sort }),
-      replace: true,
-      resetScroll: false,
-    });
+  const onRefresh = async () => {
+    const before = new Set(articles.map(articleId));
+    const res = await refetch();
+    if (res.error || !res.data) return { error: true as const };
+    return { added: res.data.articles.filter((a) => !before.has(articleId(a))).length };
+  };
+
+  const renderCard = (a: Article, opts: { compact?: boolean; heading: 2 | 3 }) => (
+    <ArticleCard
+      key={articleId(a)}
+      article={a}
+      query={query}
+      listSearch={search}
+      density={opts.compact ? "compact" : "full"}
+      showNew={!grouped && latest !== null && batchOf(a) === latest}
+      headingLevel={opts.heading}
+    />
+  );
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border/70 bg-background">
-        <div className="mx-auto max-w-5xl px-4 py-5 sm:py-8">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="text-2xl font-bold tracking-[-0.02em] sm:text-3xl">
-                Bröstcancerartiklar
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                AI-driven litteraturöversikt · SÖS Onkologen
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              aria-label="Uppdatera"
-              title="Hämta senaste datan"
-            >
-              <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
-              <span className="hidden sm:inline">Uppdatera</span>
-            </Button>
-          </div>
+      <main className="mx-auto max-w-5xl px-4 pb-6">
+        <h1 className="sr-only">Alla artiklar</h1>
 
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            {data && <span>{articles.length} artiklar</span>}
-            {data?.updated && <span>Senast uppdaterad: {formatDate(data.updated)}</span>}
-            {journalsTracked ? <span>{journalsTracked} tidskrifter bevakade</span> : null}
-            {newCount > 0 && (
-              <span className="font-medium text-foreground">
-                {newCount} {newCount === 1 ? "ny" : "nya"} sedan förra besöket
-              </span>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-5xl px-4 py-4 sm:py-6">
-        <div className="sticky top-0 z-10 -mx-4 mb-4 border-b border-border/70 bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:mb-6 sm:rounded-lg sm:border sm:border-border/70 sm:bg-card sm:p-4 sm:shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-          <div className="flex items-center gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="article-search"
-                value={queryInput}
-                onChange={(e) => setQueryInput(e.target.value)}
-                placeholder="Sök titel, författare, tidskrift, motivering"
-                aria-label="Sök bland artiklarna"
-                className="h-9 rounded-md border-border pl-9 shadow-inner focus-visible:border-foreground/40 sm:pr-10"
-              />
-              <kbd
-                aria-hidden
-                className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-[11px] text-muted-foreground sm:block"
-                title="Tryck / för att söka"
-              >
-                /
-              </kbd>
-            </div>
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" className="h-9 shrink-0 gap-1.5 sm:hidden">
-                  <SlidersHorizontal className="h-4 w-4" />
-                  Filter
-                  {filterCount > 0 && <Badge variant="secondary">{filterCount}</Badge>}
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
-                <SheetHeader>
-                  <SheetTitle>Filter och sortering</SheetTitle>
-                </SheetHeader>
-                <div className="mt-4">
-                  <FilterControls
-                    search={search}
-                    update={update}
-                    categories={allCategories}
-                    journals={allJournals}
-                    variant="sheet"
-                  />
-                </div>
-                <div className="mt-6 flex gap-2">
-                  {filterCount > 0 && (
-                    <Button variant="outline" className="flex-1" onClick={resetAll}>
-                      Rensa filter
-                    </Button>
-                  )}
-                  <SheetClose asChild>
-                    <Button className="flex-1">
-                      Visa {filtered.length} {filtered.length === 1 ? "artikel" : "artiklar"}
-                    </Button>
-                  </SheetClose>
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
-
-          <div className="mt-3 hidden sm:block">
-            <FilterControls
-              search={search}
-              update={update}
-              categories={allCategories}
-              journals={allJournals}
-              variant="inline"
-            />
-          </div>
-
-          <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground sm:mt-3">
-            <span aria-live="polite">
-              {data ? (
-                <>
-                  <strong className="text-foreground">{filtered.length}</strong> av{" "}
-                  {articles.length} artiklar
-                </>
-              ) : (
-                " "
-              )}
-            </span>
-            {filterCount > 0 && (
-              <button
-                type="button"
-                onClick={resetAll}
-                className="min-h-8 font-medium text-foreground underline-offset-2 hover:underline"
-              >
-                Rensa filter ({filterCount})
-              </button>
-            )}
-          </div>
-        </div>
-
-        {search.mesh && (
-          <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs">
-            <span>
-              Filtrerar på MeSH-term: <strong className="font-semibold">{search.mesh}</strong>
-            </span>
-            <button
-              type="button"
-              onClick={() => update({ mesh: undefined })}
-              className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-full px-2 hover:bg-muted"
-              aria-label="Rensa MeSH-filter"
-            >
-              <X className="h-3 w-3" /> Rensa
-            </button>
-          </div>
+        {data && (
+          <StatusBar
+            articleCount={articles.length}
+            journalCount={journalsTracked}
+            updated={data.updated}
+            latestBatch={latest}
+            latestCount={latestItems.length}
+            latestTopCount={latestItems.filter((a) => scoreOf(a) >= 4).length}
+            nyaActive={Boolean(search.nya)}
+            onToggleNya={() => update({ nya: search.nya ? undefined : 1 })}
+            onRefresh={onRefresh}
+            isFetching={isFetching}
+          />
         )}
+        <Toolbar
+          className="mt-3"
+          search={search}
+          update={update}
+          resetAll={resetAll}
+          queryInput={queryInput}
+          setQueryInput={setQueryInput}
+          categories={allCategories}
+          journals={allJournals}
+          resultCount={filtered.length}
+          chips={chips.filter((c) => c.key !== "q")}
+        />
 
-        {isLoading && (
-          <div className="space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-40 animate-pulse rounded-xl border bg-card"
-              />
-            ))}
-          </div>
-        )}
-
-        {error && (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
-            <p className="font-semibold text-destructive">
-              Kunde inte ladda artiklar
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {(error as Error).message}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3"
-              onClick={() => refetch()}
-            >
-              Försök igen
-            </Button>
-          </div>
-        )}
-
-        {!isLoading && !error && filtered.length === 0 && (
-          <div className="rounded-xl border border-dashed p-6 sm:p-8">
-            <p className="font-medium">Inga artiklar matchar dina filter.</p>
-            {chips.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3">
+          <p aria-live="polite" className="text-meta text-muted-foreground">
+            {data ? (
               <>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Prova att slå av:
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {chips.map((c) => (
-                    <button
-                      key={c.label}
-                      type="button"
-                      onClick={c.clear}
-                      className="inline-flex min-h-8 items-center gap-1 rounded-full border border-input bg-background px-3 text-xs hover:bg-muted"
-                    >
-                      <X className="h-3 w-3" />
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
+                <strong className="text-foreground">{filtered.length}</strong> av {articles.length}{" "}
+                artiklar
+                {grouped && filtered.length > 0 && (
+                  <span className="hidden sm:inline"> · veckovis, högst AI-relevans först</span>
+                )}
               </>
             ) : (
-              <p className="mt-1 text-sm text-muted-foreground">
-                Inga artiklar i datakällan ännu.
-              </p>
+              " "
             )}
-          </div>
-        )}
-
-        <div className="space-y-4">
-          {visible.map((a) => (
-            <ArticleCard
-              key={articleId(a)}
-              article={a}
-              query={appliedQuery}
-              isNew={newIds.has(articleId(a))}
-            />
-          ))}
+          </p>
+          <Legend />
         </div>
 
-        {remaining > 0 && (
-          <div className="mt-6 flex flex-col items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => update({ n: shown + PAGE_SIZE })}
-            >
-              Visa {Math.min(PAGE_SIZE, remaining)} till
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              Visar {visible.length} av {filtered.length}
+        <div id="search-help" className="space-y-1">
+          {query?.expansions.map((e) => (
+            <p key={e.form} className="text-meta text-muted-foreground">
+              Söker även {e.also.join(", ")} för {e.form}.
             </p>
-          </div>
-        )}
+          ))}
+          {search.mesh && (
+            <p className="text-meta text-muted-foreground">
+              MeSH-termer finns bara för artiklar som NLM har indexerat ({meshIndexed} av{" "}
+              {articles.length}), så nya artiklar saknas oftast här.
+            </p>
+          )}
+        </div>
+
+        <div id="content" tabIndex={-1} className="mt-2 outline-none">
+          {isLoading && (
+            <div className="space-y-3" aria-label="Laddar artiklar">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-40 animate-pulse rounded-xl border bg-card" />
+              ))}
+            </div>
+          )}
+
+          {error && <ErrorState error={error} onRetry={() => refetch()} />}
+
+          {!isLoading && !error && filtered.length === 0 && (
+            <div className="rounded-xl border border-dashed p-6 sm:p-8">
+              {query ? (
+                <>
+                  <p className="font-medium">Inga träffar för "{search.q}".</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Sökningen gäller {SEARCHED_FIELDS}. Alla ord måste finnas med.
+                  </p>
+                  {query.terms.length > 1 && (
+                    <>
+                      <p className="mt-3 text-sm text-muted-foreground">Prova utan ett av orden:</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {query.terms.map((t) => {
+                          const next = withoutTerm(search.q ?? "", t.label);
+                          return (
+                            <button
+                              key={t.label}
+                              type="button"
+                              onClick={() => {
+                                setQueryInput(next);
+                                update({ q: next || undefined });
+                              }}
+                              className="hit-area inline-flex min-h-8 items-center gap-1 rounded-full border border-input bg-background px-3 text-xs hover:bg-muted"
+                            >
+                              <X aria-hidden className="h-3 w-3" />
+                              {t.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : (
+                <p className="font-medium">
+                  {chips.length > 0
+                    ? "Inga artiklar matchar dina filter."
+                    : "Inga artiklar i datakällan ännu."}
+                </p>
+              )}
+              {chips.filter((c) => c.key !== "q").length > 0 && (
+                <>
+                  <p className="mt-4 text-sm text-muted-foreground">Prova att slå av:</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {chips
+                      .filter((c) => c.key !== "q")
+                      .map((c) => (
+                        <button
+                          key={c.key}
+                          type="button"
+                          onClick={c.clear}
+                          className="hit-area inline-flex min-h-8 items-center gap-1 rounded-full border border-input bg-background px-3 text-xs hover:bg-muted"
+                        >
+                          <X aria-hidden className="h-3 w-3" />
+                          {c.label}
+                        </button>
+                      ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {grouped ? (
+            <div className="space-y-8">
+              {batches.map((b) => {
+                const isCollapsed = collapsed.has(b.key);
+                const cards = triage ? b.items.filter((a) => scoreOf(a) >= 3) : b.items;
+                const low = triage ? b.items.filter((a) => scoreOf(a) < 3) : [];
+                return (
+                  <section key={b.key || "okand"} aria-label={`Tillagda ${formatDay(b.key)}`}>
+                    <BatchHeader
+                      batch={b}
+                      isLatest={b.key === latest}
+                      collapsed={isCollapsed}
+                      onToggle={() => toggleBatch(b.key)}
+                    />
+                    {!isCollapsed && (
+                      <div className="space-y-4">
+                        {cards.map((a) =>
+                          renderCard(a, { compact: triage && scoreOf(a) === 3, heading: 3 }),
+                        )}
+                        <LowRelevanceRows items={low} query={query} listSearch={search} />
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-4">{flatVisible.map((a) => renderCard(a, { heading: 2 }))}</div>
+          )}
+
+          {remaining > 0 && (
+            <div className="mt-8 flex flex-col items-center gap-2">
+              <Button variant="outline" onClick={() => update({ n: shown + PAGE_SIZE })}>
+                {grouped ? "Visa äldre veckor" : `Visa ${Math.min(PAGE_SIZE, remaining)} till`}
+              </Button>
+              <p className="text-meta text-muted-foreground">
+                Visar {visibleCount} av {filtered.length}
+              </p>
+            </div>
+          )}
+        </div>
       </main>
 
       <DisclaimerFooter />
