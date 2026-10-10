@@ -1,56 +1,68 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useCanGoBack,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import {
+  ArrowLeft,
+  CalendarDays,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Printer,
-  ArrowLeft,
+  Info,
   Presentation,
+  Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
-import {
-  articlesQueryOptions,
-  CategoryTag,
-  Stars,
-  PubDateDisplay,
-  type Article,
-} from "@/components/ArticleBrowser";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CategoryTag, PubDateDisplay } from "@/components/ArticleMeta";
+import { DeepAnalysisList, hasDeepAnalysis } from "@/components/DeepAnalysis";
+import { ErrorState } from "@/components/ErrorState";
 import { DisclaimerFooter } from "@/components/Footer";
 import { JournalBadge } from "@/components/JournalBadge";
+import { AiTag } from "@/components/Labels";
 import { MeshTags } from "@/components/MeshTags";
+import { RegulatoryBadges, RegulatorySection, hasIndications } from "@/components/RegulatoryBadges";
+import { ScoreBadge } from "@/components/Score";
+import { Segmented } from "@/components/Segmented";
+import { articlesQueryOptions, pubmedUrl, PRODUCT_NAME, type Article } from "@/lib/articles";
+import { externalLinkProps } from "@/lib/categories";
 import { pmidFromUrl, parsePubDateToMonth } from "@/lib/journals";
 import { noticeFor } from "@/lib/notices";
-import { AiTag } from "@/components/Labels";
-import { DeepAnalysisList, hasDeepAnalysis } from "@/components/DeepAnalysis";
-import { RegulatoryBadges, RegulatorySection } from "@/components/RegulatoryBadges";
 import { authorLine } from "@/lib/regulatory";
+import { cn } from "@/lib/utils";
 
 /** Rättelser, indragningar och kommentarer är inte presentationskandidater. */
 const isCandidateMaterial = (a: Article) => noticeFor(a.title, a.publication_types) === null;
 
+const pmidOf = (a: Article) => a.pmid ?? pmidFromUrl(a.url);
+
 type TreatmentKey = "cytotoxisk" | "endokrin" | "stralbehandling";
 
-const TREATMENTS: { key: TreatmentKey; label: string; match: RegExp }[] = [
+const TREATMENTS: { key: TreatmentKey; label: string; short: string; match: RegExp }[] = [
   {
     key: "cytotoxisk",
     label: "Cytotoxisk behandling",
+    short: "Cytotoxisk",
     match: /(cytotox|kemo|chemo)/i,
   },
   {
     key: "endokrin",
     label: "Endokrin behandling",
+    short: "Endokrin",
     match: /(endokrin|endocrine|hormon)/i,
   },
   {
     key: "stralbehandling",
     label: "Strålbehandling",
+    short: "Strålbehandling",
     match: /(str[åa]l|radiation|radioth|radiot)/i,
   },
 ];
@@ -74,14 +86,17 @@ const searchSchema = z.object({
   month: z.coerce.number().int().min(1).max(12).optional(),
   year: z.coerce.number().int().min(2000).max(2100).optional(),
   treatment: z.enum(["cytotoxisk", "endokrin", "stralbehandling"]).optional(),
-  prepare: z.string().optional(),
+  /** PMID för artikeln som förbereds (äldre länkar har PubMed-adressen) */
+  prepare: z.union([z.number().int().positive(), z.string()]).optional(),
 });
+
+type MonthSearch = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/manadens-artikel")({
   validateSearch: (search) => searchSchema.parse(search),
   head: () => ({
     meta: [
-      { title: "Månadens artikel — presentationskandidater" },
+      { title: `Månadens artikel · ${PRODUCT_NAME}` },
       {
         name: "description",
         content:
@@ -103,15 +118,156 @@ const fromMonthKey = (k: number) => ({ year: Math.floor(k / 12), month: (k % 12)
 
 type MonthCounts = { top: number; three: number };
 
-/** Antal kandidater som listan visar: 4–5-poängare, annars 3-poängare. */
-const candidateCount = (c: MonthCounts | undefined) =>
-  !c ? 0 : c.top > 0 ? c.top : c.three;
+/** Antal kandidater som listan visar: AI-relevans 4–5, annars 3. */
+const candidateCount = (c: MonthCounts | undefined) => (!c ? 0 : c.top > 0 ? c.top : c.three);
+
+function CandidatesInfo() {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="hit-area inline-flex items-center gap-1 text-xs font-medium text-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
+        >
+          <Info aria-hidden className="h-3.5 w-3.5" />
+          Så väljs kandidaterna
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        collisionPadding={16}
+        className="w-80 p-3 text-xs leading-relaxed"
+      >
+        <p>
+          Kandidaterna är artiklar inom behandlingsområdet med AI-relevans 4–5. Finns inga sådana
+          visas artiklar med AI-relevans 3.
+        </p>
+        <p className="mt-2">
+          Artiklarna grupperas efter publiceringsmånad i PubMed. Artiklar med publiceringsdatum i
+          framtiden (före tryck) räknas till månaden då de lades till. Rättelser, indragningar och
+          kommentarer räknas inte som kandidater.
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function MonthStepper({
+  year,
+  month,
+  counts,
+  firstKey,
+  lastKey,
+  onChange,
+}: {
+  year: number;
+  month: number;
+  counts: Map<number, MonthCounts>;
+  firstKey: number | null;
+  lastKey: number | null;
+  onChange: (year: number, month: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const prev = shiftMonth(year, month, -1);
+  const next = shiftMonth(year, month, 1);
+  const prevDisabled = firstKey !== null && monthKey(prev.year, prev.month) < firstKey;
+  const nextDisabled = lastKey !== null && monthKey(next.year, next.month) > lastKey;
+  const current = monthKey(year, month);
+
+  // Alla månader i datat, nyast först, grupperade per år
+  const keys: number[] = [];
+  if (firstKey !== null && lastKey !== null) {
+    for (let k = Math.max(lastKey, current); k >= Math.min(firstKey, current); k--) keys.push(k);
+  } else {
+    keys.push(current);
+  }
+  const years = Array.from(new Set(keys.map((k) => fromMonthKey(k).year)));
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Button
+        variant="outline"
+        size="icon"
+        className="hit-area"
+        disabled={prevDisabled}
+        aria-label={`Föregående månad: ${MONTHS_SV[prev.month - 1]} ${prev.year}`}
+        onClick={() => onChange(prev.year, prev.month)}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className="h-9 min-w-[12rem] flex-1 justify-between gap-2 font-medium"
+            aria-label={`Publiceringsmånad: ${MONTHS_SV[month - 1]} ${year}. Välj månad`}
+          >
+            <span className="flex items-center gap-2">
+              <CalendarDays aria-hidden className="h-4 w-4 opacity-60" />
+              {MONTHS_SV[month - 1]} {year}
+            </span>
+            <ChevronDown aria-hidden className="h-4 w-4 opacity-60" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="center"
+          collisionPadding={16}
+          className="max-h-[min(22rem,var(--radix-popover-content-available-height))] w-64 overflow-y-auto p-1"
+        >
+          {years.map((y) => (
+            <div key={y}>
+              <p className="px-2 pb-1 pt-2 text-xs font-semibold text-muted-foreground">{y}</p>
+              {keys
+                .filter((k) => fromMonthKey(k).year === y)
+                .map((k) => {
+                  const m = fromMonthKey(k);
+                  const c = candidateCount(counts.get(k));
+                  const isCurrent = k === current;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      aria-current={isCurrent ? "true" : undefined}
+                      onClick={() => {
+                        onChange(m.year, m.month);
+                        setOpen(false);
+                      }}
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-sm hover:bg-muted",
+                        isCurrent && "bg-muted font-semibold",
+                        c === 0 && "text-muted-foreground",
+                      )}
+                    >
+                      <span>{MONTHS_SV[m.month - 1]}</span>
+                      <span className="text-xs tabular-nums">
+                        {c > 0 ? `${c} ${c === 1 ? "kandidat" : "kandidater"}` : "inga kandidater"}
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
+          ))}
+        </PopoverContent>
+      </Popover>
+      <Button
+        variant="outline"
+        size="icon"
+        className="hit-area"
+        disabled={nextDisabled}
+        aria-label={`Nästa månad: ${MONTHS_SV[next.month - 1]} ${next.year}`}
+        onClick={() => onChange(next.year, next.month)}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
 
 function ManadensArtikel() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
 
-  const { data, isLoading, error } = useQuery(articlesQueryOptions);
+  const { data, isLoading, error, refetch } = useQuery(articlesQueryOptions);
 
   const articles = useMemo(() => data?.articles ?? [], [data]);
 
@@ -147,8 +303,7 @@ function ManadensArtikel() {
   }, [articles]);
 
   const now = new Date();
-  const defaultTreatment: TreatmentKey = "cytotoxisk";
-  const treatment = (search.treatment ?? defaultTreatment) as TreatmentKey;
+  const treatment = (search.treatment ?? "cytotoxisk") as TreatmentKey;
 
   // Utan vald månad: öppna på senaste månaden som har kandidater i det valda området
   const latestCandidateKey = useMemo(() => {
@@ -165,8 +320,14 @@ function ManadensArtikel() {
   const month = search.month ?? defaultMonth.month;
   const year = search.year ?? defaultMonth.year;
 
-  const setSearch = (next: Partial<typeof search>) =>
-    navigate({ search: (prev: typeof search) => ({ ...prev, ...next }) });
+  /** Byte av månad eller område ersätter historikposten; att öppna förberedelsen lägger till en. */
+  const setSearch = (next: Partial<MonthSearch>, opts: { push?: boolean } = {}) =>
+    navigate({
+      search: (prev: MonthSearch) => ({ ...prev, ...next }),
+      replace: !opts.push,
+    });
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
 
   const treatmentDef = TREATMENTS.find((t) => t.key === treatment)!;
 
@@ -180,7 +341,7 @@ function ManadensArtikel() {
     });
   }, [articles, year, month, treatmentDef]);
 
-  // Toppartiklar (4–5p) från andra behandlingsområden samma månad
+  // AI-relevans 4–5 från andra behandlingsområden samma månad
   const otherTopArticles = useMemo(() => {
     return articles
       .filter((a) => {
@@ -189,7 +350,7 @@ function ManadensArtikel() {
         if (!p) return false;
         if (p.y !== year || p.m !== month) return false;
         if (treatmentDef.match.test(a.category || "")) return false;
-        return a.relevance_score >= 4;
+        return Math.round(a.relevance_score) >= 4;
       })
       .sort(sortByScoreThenDate);
   }, [articles, year, month, treatmentDef]);
@@ -204,192 +365,95 @@ function ManadensArtikel() {
   const useFallback = top.length === 0 && fallback.length > 0;
   const list = top.length > 0 ? top : fallback;
 
-  // Prepare mode
-  const prepareArticle = useMemo(
-    () =>
-      search.prepare
-        ? articles.find((a) => a.url === search.prepare) ?? null
-        : null,
-    [search.prepare, articles],
-  );
+  const prepareArticle = useMemo(() => {
+    const p = search.prepare === undefined ? "" : String(search.prepare);
+    if (!p) return null;
+    const byPmid = /^\d+$/.test(p);
+    return articles.find((a) => (byPmid ? pmidOf(a) === p : a.url === p)) ?? null;
+  }, [search.prepare, articles]);
 
   if (prepareArticle) {
     return (
       <PrepareView
         article={prepareArticle}
-        onBack={() => setSearch({ prepare: undefined })}
+        onBack={() => (canGoBack ? router.history.back() : setSearch({ prepare: undefined }))}
       />
     );
   }
 
-  const prev = shiftMonth(year, month, -1);
-  const next = shiftMonth(year, month, 1);
-  const prevDisabled =
-    monthStats.first !== null && monthKey(prev.year, prev.month) < monthStats.first;
-  const nextDisabled =
-    monthStats.last !== null && monthKey(next.year, next.month) > monthStats.last;
-
-  // Årslistan byggs från datat, plus valt år om det ligger utanför
-  const yearOptions = (() => {
-    const years = new Set<number>([year]);
-    if (monthStats.first !== null && monthStats.last !== null) {
-      for (let y = fromMonthKey(monthStats.first).year; y <= fromMonthKey(monthStats.last).year; y++)
-        years.add(y);
-    } else {
-      years.add(now.getFullYear());
-    }
-    return Array.from(years).sort((a, b) => a - b);
-  })();
-
-  const countsThisTreatment = monthStats.byTreatment[treatment];
-  const latestCandidate =
-    latestCandidateKey !== null ? fromMonthKey(latestCandidateKey) : null;
+  const latestCandidate = latestCandidateKey !== null ? fromMonthKey(latestCandidateKey) : null;
   const showJumpToLatest =
-    latestCandidate !== null &&
-    (latestCandidate.year !== year || latestCandidate.month !== month);
+    latestCandidate !== null && (latestCandidate.year !== year || latestCandidate.month !== month);
+
+  const prepare = (a: Article) => {
+    const pmid = pmidOf(a);
+    setSearch({ prepare: pmid ? Number(pmid) : a.url }, { push: true });
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border/70 bg-background">
-        <div className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-            Månadens artikel
-          </h1>
+        <div className="mx-auto max-w-5xl px-4 py-5 sm:py-7">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Månadens artikel</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Presentationskandidater för journal club — 15 minuter.
+            Presentationskandidater för journal club, 15 minuter.
           </p>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-6">
-        <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <label className="text-sm">
-              <span className="mb-1 block font-medium">Månad</span>
-              <select
-                value={month}
-                onChange={(e) =>
-                  setSearch({ month: Number(e.target.value) })
-                }
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                {MONTHS_SV.map((m, i) => {
-                  const c = candidateCount(countsThisTreatment.get(monthKey(year, i + 1)));
-                  return (
-                    <option key={i + 1} value={i + 1}>
-                      {c > 0 ? `${m} (${c})` : m}
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-medium">År</span>
-              <select
-                value={year}
-                onChange={(e) =>
-                  setSearch({ year: Number(e.target.value) })
-                }
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                {yearOptions.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="text-sm sm:col-span-1">
-              <span className="mb-1 block font-medium">Behandlingsområde</span>
-              <div className="flex flex-col gap-1.5">
-                {TREATMENTS.map((t) => (
-                  <label
-                    key={t.key}
-                    className="flex cursor-pointer items-center gap-2 rounded-md border border-input px-3 py-1.5 hover:bg-accent"
-                  >
-                    <input
-                      type="radio"
-                      name="treatment"
-                      value={t.key}
-                      checked={treatment === t.key}
-                      onChange={() => setSearch({ treatment: t.key })}
-                      className="accent-primary"
-                    />
-                    <span>{t.label}</span>
-                  </label>
-                ))}
-              </div>
+      <main id="content" tabIndex={-1} className="mx-auto max-w-5xl px-4 py-5 outline-none">
+        <section
+          aria-label="Välj område och månad"
+          className="rounded-xl border bg-card p-4 shadow-sm sm:p-5"
+        >
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="w-full md:max-w-md">
+              <Segmented
+                label="Behandlingsområde"
+                value={treatment}
+                options={TREATMENTS.map((t) => ({ value: t.key, label: t.short, title: t.label }))}
+                onChange={(t) => setSearch({ treatment: t })}
+                fill
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="flex h-6 items-center text-xs font-medium text-muted-foreground">
+                Publiceringsmånad
+              </span>
+              <MonthStepper
+                year={year}
+                month={month}
+                counts={monthStats.byTreatment[treatment]}
+                firstKey={monthStats.first}
+                lastKey={monthStats.last}
+                onChange={(y, m) => setSearch({ year: y, month: m })}
+              />
             </div>
           </div>
-
-          <div className="mt-4 flex items-center justify-between gap-2 text-sm">
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={prevDisabled}
-              aria-label={`Föregående månad: ${MONTHS_SV[prev.month - 1]} ${prev.year}`}
-              onClick={() =>
-                setSearch({ year: prev.year, month: prev.month })
-              }
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">
-                {MONTHS_SV[prev.month - 1]} {prev.year}
-              </span>
-            </Button>
-            <span className="font-medium">
-              {MONTHS_SV[month - 1]} {year}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={nextDisabled}
-              aria-label={`Nästa månad: ${MONTHS_SV[next.month - 1]} ${next.year}`}
-              onClick={() =>
-                setSearch({ year: next.year, month: next.month })
-              }
-            >
-              <span className="hidden sm:inline">
-                {MONTHS_SV[next.month - 1]} {next.year}
-              </span>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+          <div className="mt-3">
+            <CandidatesInfo />
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Artiklarna grupperas efter publiceringsmånad i PubMed. Artiklar med
-            publiceringsdatum i framtiden (ahead of print) räknas till månaden
-            då de bedömdes. Rättelser, indragningar och kommentarer räknas inte
-            som kandidater. Siffran i månadslistan är antalet kandidater.
-          </p>
         </section>
 
-        <section className="mt-6">
+        <section className="mt-6" aria-live="polite">
           {isLoading && (
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-40 animate-pulse rounded-xl border bg-card"
-                />
+                <div key={i} className="h-40 animate-pulse rounded-xl border bg-card" />
               ))}
             </div>
           )}
 
-          {error && (
-            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center text-sm text-destructive">
-              Kunde inte ladda artiklar: {(error as Error).message}
-            </div>
-          )}
+          {error && <ErrorState error={error} onRetry={() => refetch()} />}
 
           {!isLoading && !error && list.length === 0 && (
-            <div className="rounded-xl border border-dashed p-10 text-center">
+            <div className="rounded-xl border border-dashed p-8 text-center sm:p-10">
               <p className="font-medium">
-                Inga kandidater för {MONTHS_SV[month - 1]} {year}.
+                Inga kandidater för {MONTHS_SV[month - 1].toLowerCase()} {year}.
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Inga artiklar inom {treatmentDef.label.toLowerCase()} med minst
-                3 poäng har publiceringsmånad {MONTHS_SV[month - 1].toLowerCase()}{" "}
-                {year}.
+                Inga artiklar inom {treatmentDef.label.toLowerCase()} med AI-relevans 3 eller högre
+                har publiceringsmånad {MONTHS_SV[month - 1].toLowerCase()} {year}.
               </p>
               {showJumpToLatest && latestCandidate && (
                 <Button
@@ -400,8 +464,8 @@ function ManadensArtikel() {
                     setSearch({ year: latestCandidate.year, month: latestCandidate.month })
                   }
                 >
-                  Gå till senaste månaden med kandidater:{" "}
-                  {MONTHS_SV[latestCandidate.month - 1]} {latestCandidate.year}
+                  Gå till senaste månaden med kandidater: {MONTHS_SV[latestCandidate.month - 1]}{" "}
+                  {latestCandidate.year}
                 </Button>
               )}
             </div>
@@ -409,27 +473,19 @@ function ManadensArtikel() {
 
           {!isLoading && !error && list.length > 0 && (
             <>
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-lg font-semibold">
-                  {useFallback ? "3-poängare" : "Topprekommendation"}{" "}
-                  <span className="text-sm font-normal text-muted-foreground">
-                    ({list.length})
-                  </span>
-                </h2>
-              </div>
+              <h2 className="mb-3 text-lg font-semibold">
+                {useFallback ? "AI-relevans 3" : "AI-relevans 4–5"}{" "}
+                <span className="text-sm font-normal text-muted-foreground">({list.length})</span>
+              </h2>
               {useFallback && (
-                <div className="mb-4 rounded-lg border border-amber-300/50 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
-                  Inga artiklar med 4–5 poäng den här månaden. Visar artiklar med
-                  3 poäng i stället.
+                <div className="mb-4 rounded-lg border border-amber-300/50 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100">
+                  Inga artiklar med AI-relevans 4–5 den här månaden. Visar artiklar med AI-relevans
+                  3 i stället.
                 </div>
               )}
               <div className="space-y-4">
                 {list.map((a) => (
-                  <CandidateCard
-                    key={a.pmid ?? a.url}
-                    article={a}
-                    onPrepare={() => setSearch({ prepare: a.url })}
-                  />
+                  <CandidateCard key={a.pmid ?? a.url} article={a} onPrepare={() => prepare(a)} />
                 ))}
               </div>
             </>
@@ -440,24 +496,19 @@ function ManadensArtikel() {
           <section className="mt-8 border-t pt-8">
             <div className="mb-3">
               <h2 className="text-lg font-semibold">
-                Övriga toppartiklar denna månad
+                AI-relevans 4–5 i andra områden
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
                   ({otherTopArticles.length})
                 </span>
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                4–5-poängare från andra behandlingsområden i{" "}
-                {MONTHS_SV[month - 1]} {year}. Värdefulla att lyfta om inget
-                toppmaterial finns i ditt eget område.
+                Från {MONTHS_SV[month - 1].toLowerCase()} {year}. Värdefulla att lyfta om inget med
+                hög AI-relevans finns i ditt eget område.
               </p>
             </div>
             <div className="space-y-4">
               {otherTopArticles.map((a) => (
-                <CandidateCard
-                  key={a.pmid ?? a.url}
-                  article={a}
-                  onPrepare={() => setSearch({ prepare: a.url })}
-                />
+                <CandidateCard key={a.pmid ?? a.url} article={a} onPrepare={() => prepare(a)} />
               ))}
             </div>
           </section>
@@ -469,19 +520,18 @@ function ManadensArtikel() {
 }
 
 function sortByScoreThenDate(a: Article, b: Article) {
-  if (b.relevance_score !== a.relevance_score)
-    return b.relevance_score - a.relevance_score;
+  if (b.relevance_score !== a.relevance_score) return b.relevance_score - a.relevance_score;
   return (b.scored_at ?? "").localeCompare(a.scored_at ?? "");
 }
 
 function ArticleTitleLink({ article }: { article: Article }) {
-  const pmid = pmidFromUrl(article.url);
+  const pmid = pmidOf(article);
   if (pmid) {
     return (
       <Link
         to="/article/$pmid"
         params={{ pmid }}
-        className="text-foreground hover:text-primary hover:underline"
+        className="text-foreground underline-offset-2 hover:underline"
       >
         {article.title}
       </Link>
@@ -490,38 +540,28 @@ function ArticleTitleLink({ article }: { article: Article }) {
   return (
     <a
       href={article.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-foreground hover:text-primary hover:underline"
+      {...externalLinkProps}
+      className="text-foreground underline-offset-2 hover:underline"
     >
       {article.title}
-      <ExternalLink className="ml-1 inline h-3.5 w-3.5 align-baseline opacity-60" />
+      <ExternalLink aria-hidden className="ml-1 inline h-3.5 w-3.5 align-baseline opacity-60" />
     </a>
   );
 }
 
-function CandidateCard({
-  article,
-  onPrepare,
-}: {
-  article: Article;
-  onPrepare: () => void;
-}) {
+function CandidateCard({ article, onPrepare }: { article: Article; onPrepare: () => void }) {
   const [open, setOpen] = useState(false);
   const da = article.deep_analysis;
 
   return (
-    <article className="rounded-xl border bg-card p-5 shadow-sm">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+    <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+      <div className="flex flex-col gap-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
+            <ScoreBadge score={article.relevance_score} />
             <CategoryTag category={article.category} />
-            <Stars score={article.relevance_score} />
-            <Badge variant="secondary" title="AI-bedömd relevans">
-              AI-relevans {Math.round(article.relevance_score)}/5
-            </Badge>
           </div>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-meta text-muted-foreground">
             <PubDateDisplay pubDate={article.pub_date} />
           </span>
         </div>
@@ -531,16 +571,16 @@ function CandidateCard({
         </h3>
 
         <div className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground/80">
-            {article.journal}
-          </span>
+          <span className="font-medium text-foreground/80">{article.journal}</span>
           <JournalBadge journal={article.journal} />
         </div>
+
+        <MeshTags terms={article.mesh_terms} variant="card" />
 
         <RegulatoryBadges reg={article.regulatory} />
 
         {article.why_relevant && (
-          <p className="rounded-lg bg-muted/60 p-3 text-sm text-foreground/80">
+          <p className="rounded-md border border-border/60 bg-muted/40 p-3 text-sm text-foreground/85">
             <AiTag className="mr-1.5" />
             <span className="font-semibold text-foreground">Motivering: </span>
             {article.why_relevant}
@@ -552,40 +592,23 @@ function CandidateCard({
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
-              className="inline-flex min-h-8 items-center gap-1 text-sm font-medium text-primary hover:underline"
+              className="hit-area inline-flex min-h-8 items-center gap-1 text-sm font-medium text-foreground/80 hover:text-foreground hover:underline"
               aria-expanded={open}
             >
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 transition-transform",
-                  open && "rotate-180",
-                )}
-              />
+              <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
               {open ? "Dölj djupanalys" : "Visa djupanalys"}
             </button>
-            {open && (
-              <>
-                <DeepAnalysisList da={da} className="mt-3" />
-                {article.mesh_terms && article.mesh_terms.length > 0 && (
-                  <div className="mt-3">
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      MeSH-termer
-                    </p>
-                    <MeshTags terms={article.mesh_terms} />
-                  </div>
-                )}
-              </>
-            )}
+            {open && <DeepAnalysisList da={da} className="mt-2" />}
           </div>
         )}
 
         <div className="flex flex-wrap gap-2 pt-1">
-          <Button onClick={onPrepare}>
+          <Button variant="outline" onClick={onPrepare}>
             <Presentation className="h-4 w-4" />
             Förbered presentation
           </Button>
-          <Button asChild variant="outline">
-            <a href={article.url} target="_blank" rel="noopener noreferrer">
+          <Button asChild variant="ghost">
+            <a href={pubmedUrl(article)} {...externalLinkProps}>
               Öppna i PubMed
               <ExternalLink className="h-4 w-4" />
             </a>
@@ -608,17 +631,10 @@ const CHECKLIST_ITEMS = [
   "Tre diskussionsfrågor",
 ];
 
-function PrepareView({
-  article,
-  onBack,
-}: {
-  article: Article;
-  onBack: () => void;
-}) {
+function PrepareView({ article, onBack }: { article: Article; onBack: () => void }) {
   const storageKey = `presentation-checklist:${article.url}`;
-  const [checked, setChecked] = useState<boolean[]>(() =>
-    CHECKLIST_ITEMS.map(() => false),
-  );
+  const [checked, setChecked] = useState<boolean[]>(() => CHECKLIST_ITEMS.map(() => false));
+  const [printIndications, setPrintIndications] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -644,65 +660,77 @@ function PrepareView({
     }
   }, [storageKey, checked]);
 
-  const toggle = (i: number) =>
-    setChecked((arr) => arr.map((v, idx) => (idx === i ? !v : v)));
+  useEffect(() => {
+    document.title = `Förbered: ${article.title.slice(0, 50)} · ${PRODUCT_NAME}`;
+  }, [article.title]);
 
+  const toggle = (i: number) => setChecked((arr) => arr.map((v, idx) => (idx === i ? !v : v)));
+  const done = checked.filter(Boolean).length;
   const authors = authorLine(article.authors, article.author_count);
-
   const da = article.deep_analysis;
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-5xl px-4 py-6 sm:py-8 print:max-w-none print:px-0 print:py-0">
+      <main
+        id="content"
+        tabIndex={-1}
+        className="mx-auto max-w-5xl px-4 py-6 outline-none sm:py-8 print:max-w-none print:px-0 print:py-0"
+      >
         <div className="max-w-3xl print:max-w-none">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
-            <Button variant="ghost" size="sm" onClick={onBack}>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <Button variant="ghost" size="sm" className="hit-area -ml-3" onClick={onBack}>
               <ArrowLeft className="h-4 w-4" />
               Tillbaka till kandidater
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.print()}
-            >
-              <Printer className="h-4 w-4" />
-              Skriv ut
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              {hasIndications(article.regulatory) && (
+                <label className="flex cursor-pointer items-center gap-2 text-meta text-muted-foreground">
+                  <Checkbox
+                    checked={printIndications}
+                    onCheckedChange={(v) => setPrintIndications(v === true)}
+                  />
+                  Ta med indikationstexter i utskriften
+                </label>
+              )}
+              <Button size="sm" onClick={() => window.print()}>
+                <Printer className="h-4 w-4" />
+                Skriv ut
+              </Button>
+            </div>
           </div>
 
-          <article className="rounded-xl border bg-card p-6 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
+          <article className="rounded-xl border bg-card p-5 shadow-sm sm:p-6 print:rounded-none print:border-0 print:p-0 print:shadow-none">
             <div className="mb-3 flex flex-wrap items-center gap-2">
+              <ScoreBadge score={article.relevance_score} />
               <CategoryTag category={article.category} />
-              <Stars score={article.relevance_score} />
-              <Badge variant="secondary" title="AI-bedömd relevans">
-                AI-relevans {Math.round(article.relevance_score)}/5
-              </Badge>
             </div>
-            <h1 className="text-xl font-bold leading-tight sm:text-2xl">
-              <a
-                href={article.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:underline"
-              >
-                {article.title}
-              </a>
-            </h1>
+            <h1 className="text-xl font-bold leading-tight sm:text-2xl">{article.title}</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground/80">
-                {article.journal}
-              </span>{" "}
-              · <PubDateDisplay pubDate={article.pub_date} />
+              <span className="font-medium text-foreground/80">{article.journal}</span> ·{" "}
+              <PubDateDisplay pubDate={article.pub_date} />
               {article.doi && <span> · DOI: {article.doi}</span>}
             </p>
-            {authors && (
-              <p className="mt-1 text-xs text-muted-foreground">{authors}</p>
-            )}
+            {authors && <p className="mt-1 text-meta text-muted-foreground">{authors}</p>}
 
-            <RegulatorySection reg={article.regulatory} expanded className="mt-4" />
+            <div className="mt-3 flex flex-wrap gap-2 print:hidden">
+              <Button asChild variant="outline" size="sm">
+                <a href={pubmedUrl(article)} {...externalLinkProps}>
+                  Öppna i PubMed
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+              {article.doi && (
+                <Button asChild variant="outline" size="sm">
+                  <a href={`https://doi.org/${article.doi}`} {...externalLinkProps}>
+                    DOI
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
+              )}
+            </div>
 
             {article.why_relevant && (
-              <div className="mt-4">
+              <div className="mt-5">
                 <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                   <AiTag />
                   Motivering
@@ -712,38 +740,69 @@ function PrepareView({
             )}
 
             {hasDeepAnalysis(da) && (
-              <div className="mt-4">
+              <div className="mt-5">
                 <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                   <AiTag />
                   Djupanalys
                 </h2>
-                <DeepAnalysisList da={da} className="mt-3" />
+                <DeepAnalysisList da={da} className="mt-2" />
               </div>
             )}
+
+            <RegulatorySection
+              reg={article.regulatory}
+              printIndications={printIndications}
+              className="mt-5"
+            />
           </article>
 
-          <section className="mt-6 rounded-xl border bg-card p-6 shadow-sm print:mt-8 print:rounded-none print:border-0 print:p-0 print:shadow-none">
-            <h2 className="text-lg font-semibold">
-              Checklista — 15 minuter journal club
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground print:hidden">
+          <section className="mt-6 rounded-xl border bg-card p-5 shadow-sm sm:p-6 print:mt-8 print:rounded-none print:border-0 print:p-0 print:shadow-none">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-lg font-semibold">Checklista för 15 minuter journal club</h2>
+              <p className="text-meta text-muted-foreground print:hidden" aria-live="polite">
+                {done} av {CHECKLIST_ITEMS.length} klara
+                {done > 0 && (
+                  <>
+                    {" · "}
+                    <button
+                      type="button"
+                      onClick={() => setChecked(CHECKLIST_ITEMS.map(() => false))}
+                      className="hit-area font-medium text-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
+                    >
+                      Börja om
+                    </button>
+                  </>
+                )}
+              </p>
+            </div>
+            <div
+              aria-hidden
+              className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted print:hidden"
+            >
+              <div
+                className="h-full rounded-full bg-foreground transition-[width]"
+                style={{ width: `${(done / CHECKLIST_ITEMS.length) * 100}%` }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground print:hidden">
               Sparas automatiskt i den här webbläsaren.
             </p>
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-4 space-y-1">
               {CHECKLIST_ITEMS.map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
                   <Checkbox
                     id={`chk-${i}`}
                     checked={checked[i]}
                     onCheckedChange={() => toggle(i)}
-                    className="mt-0.5 print:hidden"
+                    className="mt-2.5 print:hidden"
                   />
-                  <span className="hidden h-4 w-4 shrink-0 rounded-sm border border-foreground print:inline-block" />
+                  <span className="mt-1.5 hidden h-4 w-4 shrink-0 rounded-sm border border-foreground print:inline-block" />
                   <label
                     htmlFor={`chk-${i}`}
                     className={cn(
-                      "text-sm leading-relaxed",
-                      checked[i] && "line-through text-muted-foreground print:no-underline print:text-foreground",
+                      "flex-1 cursor-pointer py-1.5 text-sm leading-relaxed",
+                      checked[i] &&
+                        "text-muted-foreground line-through print:text-foreground print:no-underline",
                     )}
                   >
                     {item}
@@ -753,7 +812,7 @@ function PrepareView({
             </ul>
           </section>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

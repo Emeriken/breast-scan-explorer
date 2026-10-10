@@ -38,7 +38,7 @@ function statusText(s: RegulatorySubstance): string {
 
 function SourceTag({ label }: { label: "FDA" | "EMA" }) {
   return (
-    <span className="inline-flex items-center gap-0.5 rounded-sm border border-border/80 bg-background px-1 font-mono text-[11px] font-semibold leading-4 tracking-wider text-foreground/80">
+    <span className="inline-flex items-center gap-0.5 rounded-sm border border-border/80 bg-background px-1 font-mono text-xs font-semibold leading-4 tracking-wider text-foreground/80">
       <Check aria-hidden className="h-3 w-3" />
       {label}
     </span>
@@ -64,20 +64,18 @@ function Indication({
   truncated,
   href,
   linkText,
-  open,
+  print,
 }: {
   heading: string;
   text: string;
   truncated: boolean;
   href?: string;
   linkText: string;
-  open?: boolean;
+  /** Skriv ut hela texten (på skärmen är den alltid ihopfälld) */
+  print?: boolean;
 }) {
-  return (
-    <details className="group mt-2" open={open}>
-      <summary className="cursor-pointer select-none text-xs font-medium text-foreground/80 hover:text-foreground">
-        {heading}
-      </summary>
+  const body = (
+    <>
       <p
         lang="en"
         className="mt-1.5 whitespace-pre-line border-l-2 border-border pl-2 text-xs leading-relaxed text-foreground/80"
@@ -86,15 +84,30 @@ function Indication({
       </p>
       {truncated && (
         <p className="mt-1 text-xs text-muted-foreground">
-          Texten är kapad.{" "}
-          {href && <SourceLink href={href}>{linkText}</SourceLink>}
+          Texten är kapad. {href && <SourceLink href={href}>{linkText}</SourceLink>}
         </p>
       )}
-    </details>
+    </>
+  );
+  return (
+    <>
+      <details className="group mt-2 print:hidden">
+        <summary className="hit-area cursor-pointer select-none text-xs font-medium text-foreground/80 hover:text-foreground">
+          {heading}
+        </summary>
+        {body}
+      </details>
+      {print && (
+        <div className="mt-2 hidden print:block">
+          <p className="text-xs font-medium">{heading}</p>
+          {body}
+        </div>
+      )}
+    </>
   );
 }
 
-function FdaSection({ fda, open }: { fda: FdaStatus; open?: boolean }) {
+function FdaSection({ fda, print }: { fda: FdaStatus; print?: boolean }) {
   const label = fda.label;
   const labelBrands = label?.brands.length ? ` för ${label.brands.join(", ")}` : "";
   const labelDate = label?.date ? `, ${formatDate(label.date)}` : "";
@@ -105,9 +118,7 @@ function FdaSection({ fda, open }: { fda: FdaStatus; open?: boolean }) {
         {fda.brands.length ? fda.brands.join(", ") : "Varumärke saknas"}
         <span className="text-muted-foreground"> · {fda.application}</span>
       </p>
-      <p className="text-xs text-muted-foreground">
-        Första godkännande {formatDate(fda.approved)}
-      </p>
+      <p className="text-xs text-muted-foreground">Första godkännande {formatDate(fda.approved)}</p>
       {fda.marketed === false && (
         <p className="mt-1 text-xs text-muted-foreground">
           Ingen produkt med substansen marknadsförs i USA enligt Drugs@FDA.
@@ -125,14 +136,14 @@ function FdaSection({ fda, open }: { fda: FdaStatus; open?: boolean }) {
           truncated={label.truncated}
           href={label.url}
           linkText="Hela etiketten (DailyMed)"
-          open={open}
+          print={print}
         />
       )}
     </section>
   );
 }
 
-function EmaSection({ products, open }: { products: EmaProduct[]; open?: boolean }) {
+function EmaSection({ products, print }: { products: EmaProduct[]; print?: boolean }) {
   return (
     <section>
       <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">EMA</h4>
@@ -159,7 +170,7 @@ function EmaSection({ products, open }: { products: EmaProduct[]; open?: boolean
               truncated={p.truncated}
               href={p.url}
               linkText="Hela texten hos EMA"
-              open={open}
+              print={print}
             />
           )}
         </div>
@@ -168,12 +179,12 @@ function EmaSection({ products, open }: { products: EmaProduct[]; open?: boolean
   );
 }
 
-function SubstanceDetails({ s, open }: { s: RegulatorySubstance; open?: boolean }) {
+function SubstanceDetails({ s, print }: { s: RegulatorySubstance; print?: boolean }) {
   return (
     <div className="space-y-3 text-sm">
       <p className="font-semibold">{s.name}</p>
-      {s.fda && <FdaSection fda={s.fda} open={open} />}
-      {s.ema && <EmaSection products={s.ema} open={open} />}
+      {s.fda && <FdaSection fda={s.fda} print={print} />}
+      {s.ema && <EmaSection products={s.ema} print={print} />}
     </div>
   );
 }
@@ -183,12 +194,12 @@ function Footnote({ reg, className }: { reg: ArticleRegulatory; className?: stri
   return (
     <div className={cn("space-y-1 text-xs leading-relaxed text-muted-foreground", className)}>
       <p>
-        Gäller substansen, inte nödvändigtvis studiens indikation, kombination eller
-        beredningsform. Saknas en uppgift betyder det inte att läkemedlet är ogodkänt.
+        Gäller substansen, inte nödvändigtvis studiens indikation, kombination eller beredningsform.
+        Saknas en uppgift betyder det inte att läkemedlet är ogodkänt.
       </p>
       <p>
-        Hämtat direkt från Drugs@FDA och EMA:s lista över centralt godkända läkemedel, utan
-        AI{checked}. Substansen är indexerad i PubMed och nämns i titeln.
+        Hämtat direkt från Drugs@FDA och EMA:s lista över centralt godkända läkemedel, utan AI
+        {checked}. Substansen är indexerad i PubMed och nämns i titeln.
         {!reg.sources.fda && " FDA kunde inte läsas vid senaste kontrollen."}
         {!reg.sources.ema && " EMA kunde inte läsas vid senaste kontrollen."}
       </p>
@@ -203,7 +214,7 @@ function SubstanceChip({ s, reg }: { s: RegulatorySubstance; reg: ArticleRegulat
         <button
           type="button"
           aria-label={`${s.name}: ${statusText(s)}. Visa detaljer`}
-          className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2 py-0.5 text-xs transition-colors hover:border-border hover:bg-muted/60 sm:min-h-7"
+          className="hit-area inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2 py-0.5 text-xs transition-colors hover:border-border hover:bg-muted/60 sm:min-h-7"
         >
           <span className="font-medium text-foreground/90">{s.name}</span>
           {s.fda && <SourceTag label="FDA" />}
@@ -241,15 +252,18 @@ export function RegulatoryBadges({
   );
 }
 
-/** Alla uppgifter utfällda. Används på artikelsidan och i utskriftsvyn. */
+/**
+ * Alla uppgifter, med indikationstexterna ihopfällda. Används på
+ * artikelsidan och i förberedelsevyn.
+ */
 export function RegulatorySection({
   reg,
-  expanded,
+  printIndications,
   className,
 }: {
   reg?: ArticleRegulatory;
-  /** Visa indikationstexterna utfällda (t.ex. för utskrift) */
-  expanded?: boolean;
+  /** Ta med indikationstexterna när sidan skrivs ut */
+  printIndications?: boolean;
   className?: string;
 }) {
   if (!reg || reg.substances.length === 0) return null;
@@ -258,14 +272,21 @@ export function RegulatorySection({
       <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Godkännande (FDA/EMA)
       </h2>
-      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+      <div className={cn("mt-2 grid gap-3", reg.substances.length > 1 && "sm:grid-cols-2")}>
         {reg.substances.map((s) => (
           <div key={s.key} className="rounded-lg border border-border/70 p-3 break-inside-avoid">
-            <SubstanceDetails s={s} open={expanded} />
+            <SubstanceDetails s={s} print={printIndications} />
           </div>
         ))}
       </div>
       <Footnote reg={reg} className="mt-2" />
     </section>
+  );
+}
+
+/** true om någon substans har en indikationstext att skriva ut. */
+export function hasIndications(reg?: ArticleRegulatory): boolean {
+  return Boolean(
+    reg?.substances.some((s) => s.fda?.label?.indication || s.ema?.some((p) => p.indication)),
   );
 }

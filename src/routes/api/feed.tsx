@@ -35,11 +35,7 @@ function pmidFromUrl(url: string): string | null {
   return m ? m[1] : null;
 }
 
-function buildFeed(
-  articles: Article[],
-  updated: string | undefined,
-  baseUrl: string,
-): string {
+function buildFeed(articles: Article[], updated: string | undefined, baseUrl: string): string {
   const items = articles
     .slice()
     .sort((a, b) => (b.scored_at ?? "").localeCompare(a.scored_at ?? ""))
@@ -47,9 +43,15 @@ function buildFeed(
     .map((a) => {
       const pmid = pmidFromUrl(a.url);
       const guid = pmid ?? a.url;
-      const description = `Kategori: ${a.category}. Relevans: ${Math.round(
-        a.relevance_score,
-      )}/5. ${a.why_relevant ?? ""}`.trim();
+      // Motiveringen är AI-genererad och märks som det, precis som i appen
+      const description = [
+        `Kategori: ${a.category}.`,
+        `AI-relevans: ${Math.round(a.relevance_score)}/5.`,
+        a.why_relevant ? `AI-motivering (Claude): ${a.why_relevant}` : "",
+        "AI-genererat utifrån PubMed-posten. Inte kliniskt beslutsstöd.",
+      ]
+        .filter(Boolean)
+        .join(" ");
       return `    <item>
       <title>${escapeXml(a.title)}</title>
       <link>${escapeXml(a.url)}</link>
@@ -66,7 +68,7 @@ function buildFeed(
   <channel>
     <title>Bröstcancer-bevakning</title>
     <link>${escapeXml(baseUrl)}/</link>
-    <description>AI-bedömda bröstcancerartiklar från ledande tidskrifter.</description>
+    <description>AI-bedömda bröstcancerartiklar från ledande tidskrifter. Motivering och AI-relevans är genererade av Claude och är inte kliniskt beslutsstöd.</description>
     <language>sv</language>
     <lastBuildDate>${toRfc822(updated ?? new Date().toISOString())}</lastBuildDate>
 ${items}
@@ -97,10 +99,9 @@ export const Route = createFileRoute("/api/feed")({
             },
           });
         } catch (err) {
-          return new Response(
-            `Kunde inte generera RSS: ${(err as Error).message}`,
-            { status: 500 },
-          );
+          return new Response(`Kunde inte generera RSS: ${(err as Error).message}`, {
+            status: 500,
+          });
         }
       },
     },
