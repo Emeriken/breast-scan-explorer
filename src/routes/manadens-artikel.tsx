@@ -23,6 +23,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AiSections, ArticleHeading, ArticleLinks } from "@/components/ArticleParts";
 import { ErrorState } from "@/components/ErrorState";
+import { JcPowerPoint } from "@/components/JcPowerPoint";
 import { DisclaimerFooter } from "@/components/Footer";
 import { ArticleCard } from "@/components/list/ArticleCard";
 import { RegulatorySection, hasIndications } from "@/components/RegulatoryBadges";
@@ -372,6 +373,7 @@ function ManadensArtikel() {
     return (
       <PrepareView
         article={prepareArticle}
+        area={treatmentDef.label}
         onBack={() => (canGoBack ? router.history.back() : setSearch({ prepare: undefined }))}
       />
     );
@@ -519,6 +521,21 @@ function ManadensArtikel() {
             <div className="flex flex-col gap-3">{otherTopArticles.map(card)}</div>
           </section>
         )}
+
+        {!isLoading && !error && (
+          <p className="mt-10 border-t border-border pt-6 text-sm leading-[22px] text-muted-foreground">
+            Vill du presentera en annan artikel, till exempel en med AI-relevans 3? Öppna den under{" "}
+            <Link
+              to="/"
+              search={{ cat: [treatmentDef.label] }}
+              className="font-medium text-foreground underline underline-offset-2"
+            >
+              Alla artiklar
+            </Link>{" "}
+            och tryck på <span className="font-medium text-ink-2">Förbered för journal club</span>{" "}
+            på artikelsidan.
+          </p>
+        )}
       </main>
       <DisclaimerFooter />
     </div>
@@ -542,7 +559,16 @@ const CHECKLIST_ITEMS = [
   "Tre diskussionsfrågor",
 ];
 
-function PrepareView({ article, onBack }: { article: Article; onBack: () => void }) {
+function PrepareView({
+  article,
+  area,
+  onBack,
+}: {
+  article: Article;
+  /** Journal clubens område, till PowerPoint-presentationen */
+  area: string;
+  onBack: () => void;
+}) {
   const storageKey = `presentation-checklist:${article.url}`;
   const [checked, setChecked] = useState<boolean[]>(() => CHECKLIST_ITEMS.map(() => false));
   const [printIndications, setPrintIndications] = useState(false);
@@ -597,7 +623,7 @@ function PrepareView({ article, onBack }: { article: Article; onBack: () => void
               onClick={onBack}
             >
               <ArrowLeft className="h-4 w-4" />
-              Tillbaka till kandidater
+              Tillbaka
             </Button>
             <div className="flex flex-wrap items-center gap-3">
               {hasIndications(article.regulatory) && (
@@ -626,6 +652,8 @@ function PrepareView({ article, onBack }: { article: Article; onBack: () => void
               className="mt-7 border-t border-border pt-6"
             />
           </article>
+
+          <JcPowerPoint article={article} area={area} />
 
           <section className="mt-4 rounded-md border border-border bg-card px-5 py-6 sm:px-8 print:mt-8 print:rounded-none print:border-0 print:p-0">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
