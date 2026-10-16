@@ -13,7 +13,7 @@ export function filterChips(
   if (search.nya)
     chips.push({
       key: "nya",
-      label: "Senaste uppdateringen",
+      label: "Veckans nya",
       clear: () => update({ nya: undefined }),
     });
   if (search.min)

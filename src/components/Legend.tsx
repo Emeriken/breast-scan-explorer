@@ -56,7 +56,7 @@ export function Legend({ className }: { className?: string }) {
       >
         <p className="text-sm font-semibold">Så läser du kortet</p>
         <div className="mt-1 divide-y">
-          <Row stack sample={<ScoreBadge score={4} />}>
+          <Row stack sample={<ScoreBadge score={4} static />}>
             <p>
               Claude poängsätter varje artikel utifrån tidskrift, titel, MeSH-termer och abstract:
             </p>

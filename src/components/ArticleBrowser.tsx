@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { ChevronDown, RefreshCw, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DisclaimerFooter } from "@/components/Footer";
 import { ErrorState } from "@/components/ErrorState";
@@ -104,7 +104,7 @@ function BatchHeader({
 }
 
 export function ArticleBrowser() {
-  const { data, isLoading, error, refetch, isFetching } = useQuery(articlesQueryOptions);
+  const { data, isLoading, error, refetch } = useQuery(articlesQueryOptions);
 
   const search = useSearch({ from: "/" });
   const navigate = useNavigate({ from: "/" });
@@ -210,36 +210,6 @@ export function ArticleBrowser() {
   const meshIndexed = articles.filter((a) => (a.mesh_terms ?? []).length > 0).length;
   const [view, setView] = useListView();
 
-  // Knappen Uppdatera finns i statusraden på dator och bredvid antalet på
-  // mobil. Beskedet om vad som hände visas en stund vid den som syns.
-  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
-  const refreshTimer = useRef<number | null>(null);
-  useEffect(
-    () => () => {
-      if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
-    },
-    [],
-  );
-  const refresh = async () => {
-    setRefreshMessage(null);
-    const before = new Set(articles.map(articleId));
-    const res = await refetch();
-    const added =
-      res.error || !res.data
-        ? null
-        : res.data.articles.filter((a) => !before.has(articleId(a))).length;
-    setRefreshMessage(
-      added === null
-        ? "Kunde inte hämta ny data. Försök igen om en stund."
-        : added > 0
-          ? `${added} ${added === 1 ? "ny artikel" : "nya artiklar"}`
-          : "Inga nya artiklar",
-    );
-    if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
-    refreshTimer.current = window.setTimeout(() => setRefreshMessage(null), 6000);
-  };
-  const updatedDay = dataAge(data?.updated, latest).day;
-
   const isNew = (a: Article) => !grouped && latest !== null && batchOf(a) === latest;
   const renderCard = (a: Article, opts: { heading: 2 | 3 }) => (
     <ArticleCard
@@ -259,7 +229,6 @@ export function ArticleBrowser() {
 
         {data && (
           <StatusBar
-            articleCount={articles.length}
             journalCount={journalsTracked}
             updated={data.updated}
             latestBatch={latest}
@@ -267,9 +236,6 @@ export function ArticleBrowser() {
             latestTopCount={latestItems.filter((a) => scoreOf(a) >= 4).length}
             nyaActive={Boolean(search.nya)}
             onToggleNya={() => update({ nya: search.nya ? undefined : 1 })}
-            onRefresh={refresh}
-            refreshMessage={refreshMessage}
-            isFetching={isFetching}
           />
         )}
         <Toolbar
@@ -301,35 +267,10 @@ export function ArticleBrowser() {
             )}
           </p>
           <div className="flex shrink-0 items-center gap-1 sm:gap-4">
-            {data && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={refresh}
-                disabled={isFetching}
-                aria-label={
-                  updatedDay ? `Uppdatera. Senast uppdaterad ${formatDay(updatedDay)}` : "Uppdatera"
-                }
-                title="Hämta senaste datan"
-                className="hit-area h-9 w-9 text-ink-2 sm:hidden"
-              >
-                <RefreshCw
-                  aria-hidden
-                  className={cn("h-[17px] w-[17px]", isFetching && "animate-spin")}
-                />
-              </Button>
-            )}
             <Legend />
             <ViewToggle view={view} onChange={setView} />
           </div>
         </div>
-        <p
-          aria-live="polite"
-          className="text-meta font-medium text-foreground empty:hidden sm:hidden"
-        >
-          {refreshMessage}
-        </p>
-
         <div id="search-help" className="space-y-1">
           {query?.expansions.map((e) => (
             <p key={e.form} className="text-meta text-muted-foreground">

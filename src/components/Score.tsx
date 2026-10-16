@@ -55,28 +55,29 @@ export function ScoreDots({ score, className }: { score: number; className?: str
 
 /**
  * AI-relevans som "AI-relevans ●●●●○ 4". Siffran bär informationen, prickarna
- * och tonen gör att 4–5 syns först. `sm` utan ordet, för listor.
+ * och tonen gör att 4–5 syns först. `sm` utan ordet, för listor. Ett tryck
+ * visar hela skalan med artikelns nivå markerad; `static` för exempel.
  */
 export function ScoreBadge({
   score,
   size = "md",
+  static: isStatic,
   className,
 }: {
   score: number;
   size?: "md" | "sm";
+  static?: boolean;
   className?: string;
 }) {
   const n = roundScore(score);
-  const rubric = RUBRIC.find((r) => r.score === n)?.text;
-  return (
+  const badge = (
     <span
-      title={rubric ? `AI-relevans ${n} av 5: ${rubric}` : `AI-relevans ${n} av 5`}
       className={cn(
         "inline-flex h-[22px] shrink-0 items-center gap-[7px] whitespace-nowrap rounded-sm border px-[7px] text-xs font-medium leading-4",
         // Skriv ut fyllnad och prickar som på skärmen, annars blir 5 vit text på vitt
         "[-webkit-print-color-adjust:exact] [print-color-adjust:exact]",
         TONE[n].box,
-        className,
+        isStatic && className,
       )}
     >
       {size === "md" && <span>AI-relevans</span>}
@@ -84,6 +85,39 @@ export function ScoreBadge({
       <span className="font-bold tabular-nums">{n}</span>
       <span className="sr-only">{size === "md" ? " av 5" : " av 5 i AI-relevans"}</span>
     </span>
+  );
+  if (isStatic) return badge;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`AI-relevans ${n} av 5. Visa skalan`}
+          className={cn(
+            "hit-area inline-flex shrink-0 rounded-sm transition-opacity hover:opacity-80",
+            className,
+          )}
+        >
+          {badge}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="bottom"
+        align="start"
+        collisionPadding={16}
+        className="w-80 p-3 text-left"
+      >
+        <p className="text-xs font-semibold">AI-relevans {n} av 5</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          Claude poängsätter varje artikel utifrån tidskrift, titel, MeSH-termer och abstract,
+          enligt den här skalan:
+        </p>
+        <RubricList highlight={n} className="mt-2 text-muted-foreground" />
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          AI-genererat. Inte kliniskt beslutsstöd.
+        </p>
+      </PopoverContent>
+    </Popover>
   );
 }
 

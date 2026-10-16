@@ -58,15 +58,15 @@ export async function fetchArticles(): Promise<ApiResponse> {
 }
 
 /**
- * Gemensam fråga för alla vyer. Datafilen ändras en gång i veckan, så den
- * hämtas inte om vid varje flikbyte eller fokusbyte. Knappen Uppdatera
- * hämtar alltid färskt.
+ * Gemensam fråga för alla vyer. Datafilen ändras en gång i veckan. Den
+ * hämtas om när fliken får fokus och datan är äldre än en halvtimme, så att
+ * en sida som stått öppen sedan förra veckan får måndagens artiklar.
  */
 export const articlesQueryOptions = queryOptions({
   queryKey: ["articles"],
   queryFn: fetchArticles,
   staleTime: 30 * 60 * 1000,
-  refetchOnWindowFocus: false,
+  refetchOnWindowFocus: true,
 });
 
 export function articleId(a: Pick<Article, "pmid" | "url">): string {
