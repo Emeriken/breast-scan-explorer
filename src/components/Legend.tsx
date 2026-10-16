@@ -38,13 +38,15 @@ export function Legend({ className }: { className?: string }) {
       <PopoverTrigger asChild>
         <button
           type="button"
+          title="Så läser du kortet"
           className={cn(
-            "hit-area inline-flex items-center gap-1 rounded-md text-xs font-medium text-foreground/80 underline-offset-2 hover:text-foreground hover:underline",
+            "hit-area inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-2 hover:bg-muted hover:text-foreground",
+            "sm:h-auto sm:w-auto sm:gap-1 sm:text-xs sm:font-medium sm:underline-offset-2 sm:hover:bg-transparent sm:hover:underline",
             className,
           )}
         >
-          <HelpCircle aria-hidden className="h-3.5 w-3.5" />
-          Så läser du kortet
+          <HelpCircle aria-hidden className="h-[18px] w-[18px] sm:h-3.5 sm:w-3.5" />
+          <span className="sr-only sm:not-sr-only">Så läser du kortet</span>
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -69,6 +71,10 @@ export function Legend({ className }: { className?: string }) {
           >
             Texten intill är skriven av Claude utifrån PubMed-posten. Inte kliniskt beslutsstöd;
             kontrollera mot originalartikeln.
+          </Row>
+          <Row sample={<span className="mt-2 block w-full border-t border-dashed border-input" />}>
+            Under den streckade linjen står text som Claude har skrivit: motiveringen och
+            djupanalysen.
           </Row>
           <Row
             sample={
@@ -102,7 +108,7 @@ export function Legend({ className }: { className?: string }) {
           <Row
             sample={
               <span className="inline-flex items-center gap-0.5 rounded-sm border border-border px-1 font-mono text-xs font-semibold leading-4 tracking-wider text-ink-2">
-                <Check aria-hidden className="h-3 w-3" />
+                <Check aria-hidden className="h-2.5 w-2.5" strokeWidth={3} />
                 FDA
               </span>
             }

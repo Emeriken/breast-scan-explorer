@@ -74,9 +74,11 @@ const NOTICE_ICON: Record<NoticeKind, LucideIcon> = {
 export function NoticeBadge({
   title,
   publicationTypes,
+  className,
 }: {
   title: string;
   publicationTypes?: unknown;
+  className?: string;
 }) {
   const n = noticeFor(title, publicationTypes);
   if (!n) return null;
@@ -90,6 +92,7 @@ export function NoticeBadge({
       className={cn(
         "inline-flex h-[22px] shrink-0 items-center gap-1 rounded-sm border px-[7px] text-xs font-semibold leading-4",
         NOTICE_TONE[n.kind],
+        className,
       )}
     >
       <Icon aria-hidden className="h-3 w-3" strokeWidth={2.5} />
@@ -100,11 +103,14 @@ export function NoticeBadge({
 }
 
 /** "Ny": artikeln kom med den senaste veckovisa uppdateringen. */
-export function NewBadge() {
+export function NewBadge({ className }: { className?: string }) {
   return (
     <span
       title="Kom med den senaste veckovisa uppdateringen"
-      className="inline-flex h-5 items-center rounded-sm border border-foreground px-1.5 text-xs font-semibold leading-4 text-foreground"
+      className={cn(
+        "inline-flex h-5 items-center rounded-sm border border-foreground px-1.5 text-xs font-semibold leading-4 text-foreground",
+        className,
+      )}
     >
       Ny
     </span>

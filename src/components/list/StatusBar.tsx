@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatDay, isoDay } from "@/lib/articles";
+import { dataAge, formatDay } from "@/lib/articles";
 import { cn } from "@/lib/utils";
 
 /** Hur gammal datan får vara innan vi varnar. Pipelinen körs varje måndag. */
@@ -9,7 +8,9 @@ const STALE_AFTER_DAYS = 8;
 
 /**
  * Datans ålder och rytm, knappen Uppdatera med besked om vad som hände, och
- * ett filter för den senaste veckovisa uppdateringen.
+ * ett filter för den senaste veckovisa uppdateringen. På mobil visas bara
+ * varningen om gammal data: filtret ligger i filterarket och Uppdatera bredvid
+ * antalet träffar.
  */
 export function StatusBar({
   articleCount,
@@ -21,6 +22,7 @@ export function StatusBar({
   nyaActive,
   onToggleNya,
   onRefresh,
+  refreshMessage,
   isFetching,
 }: {
   articleCount: number;
@@ -31,49 +33,26 @@ export function StatusBar({
   latestTopCount: number;
   nyaActive: boolean;
   onToggleNya: () => void;
-  /** Hämtar om datan och svarar med antalet nya artiklar */
-  onRefresh: () => Promise<{ added: number } | { error: true }>;
+  onRefresh: () => void;
+  /** Beskedet efter Uppdatera, t.ex. "2 nya artiklar" */
+  refreshMessage: string | null;
   isFetching: boolean;
 }) {
-  const [message, setMessage] = useState<string | null>(null);
-  const timer = useRef<number | null>(null);
-  useEffect(
-    () => () => {
-      if (timer.current) window.clearTimeout(timer.current);
-    },
-    [],
-  );
-
-  const updatedDate = updated ? new Date(updated) : null;
-  const valid = updatedDate && !isNaN(updatedDate.getTime());
-  const updatedDay = valid ? isoDay(updatedDate) : latestBatch;
-  const ageDays = valid ? Math.floor((Date.now() - updatedDate.getTime()) / 86_400_000) : null;
+  const { day: updatedDay, ageDays } = dataAge(updated, latestBatch);
   const stale = ageDays !== null && ageDays > STALE_AFTER_DAYS;
 
-  const refresh = async () => {
-    setMessage(null);
-    const res = await onRefresh();
-    const text =
-      "error" in res
-        ? "Kunde inte hämta ny data. Försök igen om en stund."
-        : res.added > 0
-          ? `${res.added} ${res.added === 1 ? "ny artikel" : "nya artiklar"}`
-          : "Inga nya artiklar";
-    setMessage(text);
-    if (timer.current) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setMessage(null), 6000);
-  };
-
   return (
-    <div className="pt-4 sm:pt-6">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+    <div className="sm:pt-6">
+      <div className="hidden flex-wrap items-center justify-between gap-x-4 gap-y-2 sm:flex">
         <p className="text-meta text-muted-foreground">
-          <span className={updatedDay ? "hidden sm:inline" : undefined}>
-            {articleCount} artiklar
-            {journalCount ? ` från ${journalCount} tidskrifter` : ""}
-            {updatedDay && <span aria-hidden> · </span>}
-          </span>
-          {updatedDay && <>Uppdateras varje måndag, senast {formatDay(updatedDay)}</>}
+          {articleCount} artiklar
+          {journalCount ? ` från ${journalCount} tidskrifter` : ""}
+          {updatedDay && (
+            <>
+              <span aria-hidden> · </span>
+              Uppdateras varje måndag, senast {formatDay(updatedDay)}
+            </>
+          )}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {latestCount > 0 && (
@@ -99,17 +78,16 @@ export function StatusBar({
           <Button
             variant="outline"
             size="sm"
-            onClick={refresh}
+            onClick={onRefresh}
             disabled={isFetching}
-            aria-label="Uppdatera"
             title="Hämta senaste datan"
             className="hit-area"
           >
-            <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
-            <span className="hidden sm:inline">{isFetching ? "Hämtar…" : "Uppdatera"}</span>
+            <RefreshCw aria-hidden className={cn("h-4 w-4", isFetching && "animate-spin")} />
+            {isFetching ? "Hämtar…" : "Uppdatera"}
           </Button>
           <span aria-live="polite" className="text-meta font-medium text-foreground">
-            {message}
+            {refreshMessage}
           </span>
         </div>
       </div>

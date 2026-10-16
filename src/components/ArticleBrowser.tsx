@@ -1,18 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DisclaimerFooter } from "@/components/Footer";
 import { ErrorState } from "@/components/ErrorState";
 import { Legend } from "@/components/Legend";
 import { ArticleCard } from "@/components/list/ArticleCard";
+import { ArticleRows, RowHeader } from "@/components/list/ArticleRow";
 import { LowRelevanceRows } from "@/components/list/LowRelevanceRows";
 import { StatusBar } from "@/components/list/StatusBar";
 import { Toolbar } from "@/components/list/Toolbar";
+import { ViewToggle } from "@/components/list/ViewToggle";
 import { filterChips } from "@/components/list/filterChips";
 import { DEFAULT_SORT, PAGE_SIZE, type ArticleSearch } from "@/lib/article-search";
-import { articleId, articlesQueryOptions, formatDay, type Article } from "@/lib/articles";
+import {
+  articleId,
+  articlesQueryOptions,
+  dataAge,
+  formatDay,
+  isoWeek,
+  type Article,
+} from "@/lib/articles";
 import {
   batchOf,
   groupByBatch,
@@ -21,46 +30,74 @@ import {
   scoreOf,
   type Batch,
 } from "@/lib/article-list";
+import { useListView } from "@/lib/list-view";
 import { SEARCHED_FIELDS, parseQuery, withoutTerm } from "@/lib/search";
 import { cn } from "@/lib/utils";
 
-/** Rubrik för en vecka, t.ex. "Tillagda mån 5 okt." med antal. */
+/** Veckans namn, t.ex. "Vecka 42", eller datumet om veckan inte går att räkna ut. */
+function weekLabel(key: string): string {
+  const w = key ? isoWeek(key) : null;
+  return w ? `Vecka ${w}` : key ? `Tillagda ${formatDay(key)}` : "Okänt datum";
+}
+
+/**
+ * Rubrik för en vecka: "Vecka 42 tillagda mån 12 okt." med antal. På mobil
+ * står datumet och antalet på en egen rad under.
+ */
 function BatchHeader({
   batch,
   isLatest,
   collapsed,
   onToggle,
+  showTop,
 }: {
   batch: Batch;
   isLatest: boolean;
   collapsed: boolean;
   onToggle: () => void;
+  /** Antalet med AI-relevans 4–5. Döljs när listan redan är filtrerad på AI-relevans. */
+  showTop: boolean;
 }) {
   const top = batch.items.filter((a) => scoreOf(a) >= 4).length;
+  const week = batch.key ? isoWeek(batch.key) : null;
+  const day = batch.key ? formatDay(batch.key) : null;
   return (
-    <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border/70 pb-2">
-      <h2 className="text-base font-semibold">
+    <div className="mb-3 flex flex-col gap-0.5 border-b border-border pb-2.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-4 sm:gap-y-1">
+      <h2 className="text-[17px] font-semibold leading-6 tracking-[-0.01em]">
         <button
           type="button"
           aria-expanded={!collapsed}
           onClick={onToggle}
-          className="hit-area inline-flex items-center gap-1.5 rounded-sm text-left hover:text-foreground/80"
+          className="hit-area inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-sm text-left hover:text-foreground/80"
         >
           <ChevronDown
             aria-hidden
-            className={cn("h-4 w-4 shrink-0 transition-transform", collapsed && "-rotate-90")}
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+              collapsed && "-rotate-90",
+            )}
           />
-          Tillagda {batch.key ? formatDay(batch.key) : "okänt datum"}
+          {weekLabel(batch.key)}
+          {week && day && (
+            <span className="hidden text-sm font-normal text-muted-foreground sm:inline">
+              tillagda {day}
+            </span>
+          )}
           {isLatest && (
-            <span className="ml-1 inline-flex h-5 items-center rounded-sm bg-foreground px-1.5 text-xs font-semibold leading-4 text-background">
+            <span className="inline-flex h-5 items-center rounded-sm bg-foreground px-1.5 text-xs font-semibold leading-4 text-background">
               Senaste
             </span>
           )}
         </button>
       </h2>
-      <p className="text-meta text-muted-foreground">
-        {batch.items.length} {batch.items.length === 1 ? "artikel" : "artiklar"}
-        {top > 0 && ` · ${top} med AI-relevans 4–5`}
+      <p className="ml-6 text-meta text-muted-foreground sm:ml-0">
+        {week && day && <span className="whitespace-nowrap sm:hidden">Tillagda {day} · </span>}
+        <span className="whitespace-nowrap">
+          {batch.items.length} {batch.items.length === 1 ? "artikel" : "artiklar"}
+        </span>
+        {showTop && top > 0 && (
+          <span className="whitespace-nowrap"> · {top} med AI-relevans 4–5</span>
+        )}
       </p>
     </div>
   );
@@ -171,21 +208,46 @@ export function ArticleBrowser() {
 
   const chips = filterChips(search, update);
   const meshIndexed = articles.filter((a) => (a.mesh_terms ?? []).length > 0).length;
+  const [view, setView] = useListView();
 
-  const onRefresh = async () => {
+  // Knappen Uppdatera finns i statusraden på dator och bredvid antalet på
+  // mobil. Beskedet om vad som hände visas en stund vid den som syns.
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+  const refreshTimer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
+    },
+    [],
+  );
+  const refresh = async () => {
+    setRefreshMessage(null);
     const before = new Set(articles.map(articleId));
     const res = await refetch();
-    if (res.error || !res.data) return { error: true as const };
-    return { added: res.data.articles.filter((a) => !before.has(articleId(a))).length };
+    const added =
+      res.error || !res.data
+        ? null
+        : res.data.articles.filter((a) => !before.has(articleId(a))).length;
+    setRefreshMessage(
+      added === null
+        ? "Kunde inte hämta ny data. Försök igen om en stund."
+        : added > 0
+          ? `${added} ${added === 1 ? "ny artikel" : "nya artiklar"}`
+          : "Inga nya artiklar",
+    );
+    if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
+    refreshTimer.current = window.setTimeout(() => setRefreshMessage(null), 6000);
   };
+  const updatedDay = dataAge(data?.updated, latest).day;
 
+  const isNew = (a: Article) => !grouped && latest !== null && batchOf(a) === latest;
   const renderCard = (a: Article, opts: { heading: 2 | 3 }) => (
     <ArticleCard
       key={articleId(a)}
       article={a}
       query={query}
       listSearch={search}
-      showNew={!grouped && latest !== null && batchOf(a) === latest}
+      showNew={isNew(a)}
       headingLevel={opts.heading}
     />
   );
@@ -205,12 +267,13 @@ export function ArticleBrowser() {
             latestTopCount={latestItems.filter((a) => scoreOf(a) >= 4).length}
             nyaActive={Boolean(search.nya)}
             onToggleNya={() => update({ nya: search.nya ? undefined : 1 })}
-            onRefresh={onRefresh}
+            onRefresh={refresh}
+            refreshMessage={refreshMessage}
             isFetching={isFetching}
           />
         )}
         <Toolbar
-          className="mt-3"
+          className="sm:mt-3"
           search={search}
           update={update}
           resetAll={resetAll}
@@ -220,10 +283,11 @@ export function ArticleBrowser() {
           journals={allJournals}
           resultCount={filtered.length}
           chips={chips.filter((c) => c.key !== "q")}
+          latest={latest ? { count: latestItems.length, day: latest } : undefined}
         />
 
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3">
-          <p aria-live="polite" className="text-meta text-muted-foreground">
+        <div className="flex items-center justify-between gap-x-4 gap-y-1 py-2 sm:py-3">
+          <p aria-live="polite" className="min-w-0 text-meta text-muted-foreground">
             {data ? (
               <>
                 <strong className="text-foreground">{filtered.length}</strong> av {articles.length}{" "}
@@ -236,8 +300,35 @@ export function ArticleBrowser() {
               " "
             )}
           </p>
-          <Legend />
+          <div className="flex shrink-0 items-center gap-1 sm:gap-4">
+            {data && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={refresh}
+                disabled={isFetching}
+                aria-label={
+                  updatedDay ? `Uppdatera. Senast uppdaterad ${formatDay(updatedDay)}` : "Uppdatera"
+                }
+                title="Hämta senaste datan"
+                className="hit-area h-9 w-9 text-ink-2 sm:hidden"
+              >
+                <RefreshCw
+                  aria-hidden
+                  className={cn("h-[17px] w-[17px]", isFetching && "animate-spin")}
+                />
+              </Button>
+            )}
+            <Legend />
+            <ViewToggle view={view} onChange={setView} />
+          </div>
         </div>
+        <p
+          aria-live="polite"
+          className="text-meta font-medium text-foreground empty:hidden sm:hidden"
+        >
+          {refreshMessage}
+        </p>
 
         <div id="search-help" className="space-y-1">
           {query?.expansions.map((e) => (
@@ -328,31 +419,61 @@ export function ArticleBrowser() {
           )}
 
           {grouped ? (
-            <div className="space-y-8">
+            <div className="space-y-10">
               {batches.map((b) => {
                 const isCollapsed = collapsed.has(b.key);
-                const cards = triage ? b.items.filter((a) => scoreOf(a) >= 3) : b.items;
+                const main = triage ? b.items.filter((a) => scoreOf(a) >= 3) : b.items;
                 const low = triage ? b.items.filter((a) => scoreOf(a) < 3) : [];
+                const label = b.key
+                  ? `${weekLabel(b.key)}, tillagda ${formatDay(b.key)}`
+                  : "Okänt datum";
                 return (
-                  <section key={b.key || "okand"} aria-label={`Tillagda ${formatDay(b.key)}`}>
+                  <section key={b.key || "okand"} aria-label={label}>
                     <BatchHeader
                       batch={b}
                       isLatest={b.key === latest}
                       collapsed={isCollapsed}
                       onToggle={() => toggleBatch(b.key)}
+                      showTop={!search.min && !search.score}
                     />
-                    {!isCollapsed && (
-                      <div className="space-y-4">
-                        {cards.map((a) => renderCard(a, { heading: 3 }))}
-                        <LowRelevanceRows items={low} query={query} listSearch={search} />
-                      </div>
-                    )}
+                    {!isCollapsed &&
+                      (view === "lista" ? (
+                        <div className="overflow-hidden rounded-md border border-border bg-card">
+                          <RowHeader />
+                          <ArticleRows items={main} query={query} listSearch={search} />
+                          <LowRelevanceRows
+                            variant="inline"
+                            items={low}
+                            query={query}
+                            listSearch={search}
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-3">
+                          {main.map((a) => renderCard(a, { heading: 3 }))}
+                          <LowRelevanceRows items={low} query={query} listSearch={search} />
+                        </div>
+                      ))}
                   </section>
                 );
               })}
             </div>
+          ) : view === "lista" ? (
+            flatVisible.length > 0 && (
+              <div className="overflow-hidden rounded-md border border-border bg-card">
+                <RowHeader />
+                <ArticleRows
+                  items={flatVisible}
+                  query={query}
+                  listSearch={search}
+                  showNew={isNew}
+                />
+              </div>
+            )
           ) : (
-            <div className="space-y-4">{flatVisible.map((a) => renderCard(a, { heading: 2 }))}</div>
+            <div className="flex flex-col gap-3">
+              {flatVisible.map((a) => renderCard(a, { heading: 2 }))}
+            </div>
           )}
 
           {remaining > 0 && (

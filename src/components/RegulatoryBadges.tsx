@@ -38,8 +38,8 @@ function statusText(s: RegulatorySubstance): string {
 
 function SourceTag({ label }: { label: "FDA" | "EMA" }) {
   return (
-    <span className="inline-flex items-center gap-0.5 rounded-sm border border-border/80 bg-background px-1 font-mono text-xs font-semibold leading-4 tracking-wider text-foreground/80">
-      <Check aria-hidden className="h-3 w-3" />
+    <span className="inline-flex items-center gap-0.5 rounded-sm border border-border px-1 font-mono text-xs font-semibold leading-4 tracking-wider text-ink-2">
+      <Check aria-hidden className="h-2.5 w-2.5" strokeWidth={3} />
       {label}
     </span>
   );
@@ -214,9 +214,9 @@ function SubstanceChip({ s, reg }: { s: RegulatorySubstance; reg: ArticleRegulat
         <button
           type="button"
           aria-label={`${s.name}: ${statusText(s)}. Visa detaljer`}
-          className="hit-area inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2 py-0.5 text-xs transition-colors hover:border-border hover:bg-muted/60 sm:min-h-7"
+          className="hit-area inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2 py-0.5 text-xs transition-colors hover:border-input hover:bg-muted sm:min-h-7"
         >
-          <span className="font-medium text-foreground/90">{s.name}</span>
+          <span className="font-medium text-foreground">{s.name}</span>
           {s.fda && <SourceTag label="FDA" />}
           {s.ema && <SourceTag label="EMA" />}
         </button>

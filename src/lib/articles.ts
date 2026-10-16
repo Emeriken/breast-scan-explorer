@@ -110,9 +110,34 @@ export function formatDay(day: string, now: Date = new Date()): string {
   return Number(m[1]) === now.getFullYear() ? WEEKDAY_DATE.format(d) : WEEKDAY_DATE_YEAR.format(d);
 }
 
+/** ISO-veckonummer för "ÅÅÅÅ-MM-DD", t.ex. "2026-10-12" → 42. */
+export function isoWeek(day: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(day);
+  if (!m) return null;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  // Veckan räknas från torsdagen i samma vecka (måndag = 1, söndag = 7)
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = Date.UTC(d.getUTCFullYear(), 0, 1);
+  return Math.ceil(((d.getTime() - yearStart) / 86_400_000 + 1) / 7);
+}
+
 /** Dagens datum som "ÅÅÅÅ-MM-DD" i lokal tid. */
 export function isoDay(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Dagen då datan senast uppdaterades ("ÅÅÅÅ-MM-DD") och hur många dagar
+ * sedan det var. Utan tidsstämpel används den senaste veckans datum.
+ */
+export function dataAge(
+  updated: string | undefined,
+  fallbackDay: string | null,
+  now: number = Date.now(),
+): { day: string | null; ageDays: number | null } {
+  const d = updated ? new Date(updated) : null;
+  if (!d || isNaN(d.getTime())) return { day: fallbackDay, ageDays: null };
+  return { day: isoDay(d), ageDays: Math.floor((now - d.getTime()) / 86_400_000) };
 }
 
 /** Klipp en titel för fliken, utan att dela ord. */
