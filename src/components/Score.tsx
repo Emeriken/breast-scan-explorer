@@ -73,6 +73,8 @@ export function ScoreBadge({
       title={rubric ? `AI-relevans ${n} av 5: ${rubric}` : `AI-relevans ${n} av 5`}
       className={cn(
         "inline-flex h-[22px] shrink-0 items-center gap-[7px] whitespace-nowrap rounded-sm border px-[7px] text-xs font-medium leading-4",
+        // Skriv ut fyllnad och prickar som på skärmen, annars blir 5 vit text på vitt
+        "[-webkit-print-color-adjust:exact] [print-color-adjust:exact]",
         TONE[n].box,
         className,
       )}

@@ -1,8 +1,10 @@
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, type ReactNode } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { articlesQueryOptions, formatDate, PRODUCT_NAME } from "@/lib/articles";
+import { articlesQueryOptions, dataAge, formatDay, PRODUCT_NAME } from "@/lib/articles";
+import { batchOf, latestBatchKey, scoreOf } from "@/lib/article-list";
 import type { ArticleSearch } from "@/lib/article-search";
 import { CHART_COLORS } from "@/lib/categories";
 import { journalLevel } from "@/lib/journals";
@@ -25,6 +27,9 @@ export const Route = createFileRoute("/statistik")({
 
 /** Gemensamma inställningar så att alla diagram ser likadana ut. */
 const BAR_SIZE = 24;
+/** Liggande staplar: höjd per rad och stapelns tjocklek */
+const ROW = 30;
+const ROW_BAR = 16;
 const TICK = { fontSize: 12, fill: CHART_COLORS.tick };
 const VALUE_LABEL = { fontSize: 12, fill: CHART_COLORS.label };
 const TOOLTIP_CURSOR = { fill: "var(--color-muted)", fillOpacity: 0.6 };
@@ -114,6 +119,21 @@ const toLevel = (v: string): ArticleSearch | null => {
 const articlesFormatter = (v: number | string) => [v, "Artiklar"] as [number | string, string];
 
 const MONTH_FORMAT = new Intl.DateTimeFormat("sv-SE", { month: "short", year: "numeric" });
+const LONG_DATE = new Intl.DateTimeFormat("sv-SE", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/** Avsluta med punkt, utan att dubbla punkten efter en förkortning som "okt." */
+const sentence = (t: string) => (t.endsWith(".") ? t : `${t}.`);
+
+/** "2026-05-27" → "27 maj 2026" */
+function longDate(day: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(day);
+  return m ? LONG_DATE.format(new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]))) : day;
+}
 
 function StatistikPage() {
   const { data, isLoading, error, refetch } = useQuery(articlesQueryOptions);
@@ -152,7 +172,7 @@ function StatistikPage() {
       .slice(0, 10);
   }, [articles]);
 
-  // Bedömda artiklar per månad. Innevarande månad är inte avslutad och visas ljusare.
+  // Bedömda artiklar per månad. Innevarande månad är inte avslutad och visas dämpad.
   const overTime = useMemo(() => {
     const m = new Map<string, number>();
     for (const a of articles) {
@@ -193,27 +213,48 @@ function StatistikPage() {
       ? data.journals_tracked
       : new Set(articles.map((a) => a.journal).filter(Boolean)).size;
 
+  // Nyckeltal, var och ett en länk till listan
+  const kpi = useMemo(() => {
+    const latest = latestBatchKey(articles);
+    const latestItems = latest ? articles.filter((a) => batchOf(a) === latest) : [];
+    const firstDay = articles.reduce<string | null>((min, a) => {
+      const b = batchOf(a);
+      return b && (min === null || b < min) ? b : min;
+    }, null);
+    return {
+      latest,
+      latestCount: latestItems.length,
+      latestTop: latestItems.filter((a) => scoreOf(a) >= 4).length,
+      top: articles.filter((a) => scoreOf(a) >= 4).length,
+      firstDay,
+    };
+  }, [articles]);
+  const updatedDay = dataAge(data?.updated, kpi.latest).day;
+  const topShare = articles.length ? Math.round((kpi.top / articles.length) * 100) : 0;
+
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border/70 bg-background">
-        <div className="mx-auto max-w-5xl px-4 py-5 sm:py-7">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Statistik</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Översikt över all AI-bedömd data. Klicka på en stapel eller etikett för att se
-            artiklarna.
+      <main id="content" tabIndex={-1} className="mx-auto max-w-5xl px-4 pb-8 outline-none">
+        <div className="flex flex-col gap-1 pb-5 pt-6 sm:pt-7">
+          <h1 className="text-2xl font-semibold leading-[30px] tracking-[-0.02em]">Statistik</h1>
+          <p className="text-sm leading-[22px] text-muted-foreground">
+            {data && articles.length > 0 ? (
+              <>
+                {articles.length} AI-bedömda artiklar från {journalsTracked} tidskrifter
+                {kpi.firstDay && ` sedan ${longDate(kpi.firstDay)}`}.
+                {updatedDay && ` Senast uppdaterad ${sentence(formatDay(updatedDay))}`}{" "}
+              </>
+            ) : (
+              "Översikt över all AI-bedömd data. "
+            )}
+            Klicka på en stapel eller etikett för att se artiklarna.
           </p>
         </div>
-      </header>
 
-      <main
-        id="content"
-        tabIndex={-1}
-        className="mx-auto max-w-5xl space-y-6 px-4 py-6 outline-none"
-      >
         {isLoading && (
-          <div className="grid gap-4 sm:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-32 animate-pulse rounded-md border bg-card" />
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-28 animate-pulse rounded-md border bg-card" />
             ))}
           </div>
         )}
@@ -228,55 +269,73 @@ function StatistikPage() {
 
         {!isLoading && !error && (
           <>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <StatCard label="Totalt antal artiklar" value={articles.length} />
-              <StatCard
-                label="Senast uppdaterad"
-                value={data?.updated ? formatDate(data.updated) : "–"}
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <KpiLink
+                label="Senaste uppdateringen"
+                value={kpi.latestCount}
+                sub={kpi.latest ? `artiklar, tillagda ${formatDay(kpi.latest)}` : "artiklar"}
+                search={{ nya: 1 }}
               />
-              <StatCard label="Tidskrifter bevakade" value={journalsTracked} />
+              <KpiLink
+                label="Därav AI-relevans 4–5"
+                value={kpi.latestTop}
+                sub="i senaste uppdateringen"
+                search={{ nya: 1, min: 4 }}
+              />
+              <KpiLink
+                label="AI-relevans 4–5 totalt"
+                value={kpi.top}
+                sub={`${topShare}\u00a0% av alla artiklar`}
+                search={{ min: 4 }}
+              />
+              <KpiLink
+                label="Alla artiklar"
+                value={articles.length}
+                sub={kpi.firstDay ? `sedan ${longDate(kpi.firstDay)}` : ""}
+                search={{}}
+              />
             </div>
 
-            <ChartCard title="Artiklar per kategori">
-              <ResponsiveContainer width="100%" height={byCategory.length * 40 + 16}>
-                <BarChart
-                  data={byCategory}
-                  layout="vertical"
-                  margin={{ left: 8, right: 40, top: 4, bottom: 4 }}
-                  accessibilityLayer
-                >
-                  <XAxis type="number" hide allowDecimals={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={170}
-                    tick={(p: TickProps) => <LinkTick {...p} toSearch={toCategory} />}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    cursor={TOOLTIP_CURSOR}
-                    formatter={articlesFormatter}
-                    {...TOOLTIP_STYLE}
-                  />
-                  <Bar
-                    dataKey="value"
-                    name="Artiklar"
-                    isAnimationActive={false}
-                    fill={CHART_COLORS.bar}
-                    radius={[0, 4, 4, 0]}
-                    maxBarSize={BAR_SIZE}
-                    label={{ position: "right", ...VALUE_LABEL }}
-                    cursor="pointer"
-                    onClick={(d: unknown) => openList(toCategory(barName(d)))}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2 lg:items-start">
+              <ChartCard title="Artiklar per kategori">
+                <ResponsiveContainer width="100%" height={byCategory.length * ROW + 8}>
+                  <BarChart
+                    data={byCategory}
+                    layout="vertical"
+                    margin={{ left: 0, right: 40, top: 4, bottom: 4 }}
+                    accessibilityLayer
+                  >
+                    <XAxis type="number" hide allowDecimals={false} />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={160}
+                      tick={(p: TickProps) => <LinkTick {...p} toSearch={toCategory} />}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      cursor={TOOLTIP_CURSOR}
+                      formatter={articlesFormatter}
+                      {...TOOLTIP_STYLE}
+                    />
+                    <Bar
+                      dataKey="value"
+                      name="Artiklar"
+                      isAnimationActive={false}
+                      fill={CHART_COLORS.bar}
+                      radius={[0, 4, 4, 0]}
+                      maxBarSize={ROW_BAR}
+                      label={{ position: "right", ...VALUE_LABEL }}
+                      cursor="pointer"
+                      onClick={(d: unknown) => openList(toCategory(barName(d)))}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
 
-            <div className="grid gap-6 lg:grid-cols-2">
-              <ChartCard title="Fördelning av AI-relevans">
-                <ResponsiveContainer width="100%" height={316}>
+              <ChartCard title="Fördelning av AI-relevans" note="1–3 dämpade">
+                <ResponsiveContainer width="100%" height={240}>
                   <BarChart
                     data={byScore}
                     margin={{ top: 24, right: 8, left: 8, bottom: 4 }}
@@ -301,23 +360,29 @@ function StatistikPage() {
                       dataKey="value"
                       name="Artiklar"
                       isAnimationActive={false}
-                      fill={CHART_COLORS.bar}
                       radius={[4, 4, 0, 0]}
                       maxBarSize={BAR_SIZE}
                       label={{ position: "top", ...VALUE_LABEL }}
                       cursor="pointer"
                       onClick={(d: unknown) => openList(toScore(barName(d)))}
-                    />
+                    >
+                      {byScore.map((d) => (
+                        <Cell
+                          key={d.score}
+                          fill={Number(d.score) >= 4 ? CHART_COLORS.bar : CHART_COLORS.soft}
+                        />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
 
               <ChartCard title="Topp 10 tidskrifter">
-                <ResponsiveContainer width="100%" height={topJournals.length * 30 + 16}>
+                <ResponsiveContainer width="100%" height={topJournals.length * ROW + 8}>
                   <BarChart
                     data={topJournals}
                     layout="vertical"
-                    margin={{ left: 8, right: 40, top: 4, bottom: 4 }}
+                    margin={{ left: 0, right: 40, top: 4, bottom: 4 }}
                     accessibilityLayer
                   >
                     <XAxis type="number" hide allowDecimals={false} />
@@ -340,7 +405,7 @@ function StatistikPage() {
                       isAnimationActive={false}
                       fill={CHART_COLORS.bar}
                       radius={[0, 4, 4, 0]}
-                      maxBarSize={18}
+                      maxBarSize={ROW_BAR}
                       label={{ position: "right", ...VALUE_LABEL }}
                       cursor="pointer"
                       onClick={(d: unknown) => openList(toJournal(barName(d)))}
@@ -348,97 +413,99 @@ function StatistikPage() {
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
-            </div>
 
-            <ChartCard
-              title={
-                <span className="flex items-center gap-2">
-                  Artiklar per KI-JL-nivå
-                  <KiJlInfoTooltip />
-                </span>
-              }
-            >
-              <ResponsiveContainer width="100%" height={3 * 40 + 16}>
-                <BarChart
-                  data={byLevel}
-                  layout="vertical"
-                  margin={{ left: 8, right: 40, top: 4, bottom: 4 }}
-                  accessibilityLayer
+              <div className="flex flex-col gap-4">
+                <ChartCard
+                  title={
+                    <span className="flex items-center gap-2">
+                      Tidskriftsnivå (KI-JL)
+                      <KiJlInfoTooltip />
+                    </span>
+                  }
                 >
-                  <XAxis type="number" hide allowDecimals={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={40}
-                    tick={(p: TickProps) => <LinkTick {...p} toSearch={toLevel} />}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    cursor={TOOLTIP_CURSOR}
-                    formatter={articlesFormatter}
-                    {...TOOLTIP_STYLE}
-                  />
-                  <Bar
-                    dataKey="value"
-                    name="Artiklar"
-                    isAnimationActive={false}
-                    fill={CHART_COLORS.bar}
-                    radius={[0, 4, 4, 0]}
-                    maxBarSize={BAR_SIZE}
-                    label={{ position: "right", ...VALUE_LABEL }}
-                    cursor="pointer"
-                    onClick={(d: unknown) => openList(toLevel(barName(d)))}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
-            <ChartCard
-              title="Tillagda artiklar per månad"
-              description={
-                hasPartialMonth
-                  ? "Den ljusare stapeln är innevarande månad, som ännu inte är avslutad."
-                  : undefined
-              }
-            >
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart
-                  data={overTime}
-                  margin={{ top: 24, right: 8, left: 8, bottom: 4 }}
-                  accessibilityLayer
-                >
-                  <XAxis
-                    dataKey="label"
-                    tick={TICK}
-                    axisLine={{ stroke: CHART_COLORS.grid }}
-                    tickLine={false}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis hide allowDecimals={false} domain={[0, "dataMax"]} />
-                  <Tooltip
-                    cursor={TOOLTIP_CURSOR}
-                    formatter={articlesFormatter}
-                    {...TOOLTIP_STYLE}
-                  />
-                  <Bar
-                    dataKey="value"
-                    name="Artiklar"
-                    isAnimationActive={false}
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={BAR_SIZE}
-                    label={{ position: "top", ...VALUE_LABEL }}
-                  >
-                    {overTime.map((d) => (
-                      <Cell
-                        key={d.month}
-                        fill={d.partial ? CHART_COLORS.partial : CHART_COLORS.bar}
+                  <ResponsiveContainer width="100%" height={3 * ROW + 8}>
+                    <BarChart
+                      data={byLevel}
+                      layout="vertical"
+                      margin={{ left: 0, right: 40, top: 4, bottom: 4 }}
+                      accessibilityLayer
+                    >
+                      <XAxis type="number" hide allowDecimals={false} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={36}
+                        tick={(p: TickProps) => <LinkTick {...p} toSearch={toLevel} />}
+                        axisLine={false}
+                        tickLine={false}
                       />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
+                      <Tooltip
+                        cursor={TOOLTIP_CURSOR}
+                        formatter={articlesFormatter}
+                        {...TOOLTIP_STYLE}
+                      />
+                      <Bar
+                        dataKey="value"
+                        name="Artiklar"
+                        isAnimationActive={false}
+                        fill={CHART_COLORS.bar}
+                        radius={[0, 4, 4, 0]}
+                        maxBarSize={ROW_BAR}
+                        label={{ position: "right", ...VALUE_LABEL }}
+                        cursor="pointer"
+                        onClick={(d: unknown) => openList(toLevel(barName(d)))}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+
+                <ChartCard
+                  title="Tillagda artiklar per månad"
+                  description={
+                    hasPartialMonth
+                      ? "Den dämpade stapeln är innevarande månad, som ännu inte är avslutad."
+                      : undefined
+                  }
+                >
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart
+                      data={overTime}
+                      margin={{ top: 24, right: 8, left: 8, bottom: 4 }}
+                      accessibilityLayer
+                    >
+                      <XAxis
+                        dataKey="label"
+                        tick={TICK}
+                        axisLine={{ stroke: CHART_COLORS.grid }}
+                        tickLine={false}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis hide allowDecimals={false} domain={[0, "dataMax"]} />
+                      <Tooltip
+                        cursor={TOOLTIP_CURSOR}
+                        formatter={articlesFormatter}
+                        {...TOOLTIP_STYLE}
+                      />
+                      <Bar
+                        dataKey="value"
+                        name="Artiklar"
+                        isAnimationActive={false}
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={BAR_SIZE}
+                        label={{ position: "top", ...VALUE_LABEL }}
+                      >
+                        {overTime.map((d) => (
+                          <Cell
+                            key={d.month}
+                            fill={d.partial ? CHART_COLORS.soft : CHART_COLORS.bar}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+              </div>
+            </div>
           </>
         )}
       </main>
@@ -447,31 +514,57 @@ function StatistikPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string | number }) {
+/** Nyckeltal som går till listan, filtrerad på det som räknats. */
+function KpiLink({
+  label,
+  value,
+  sub,
+  search,
+}: {
+  label: string;
+  value: number;
+  sub: string;
+  search: ArticleSearch;
+}) {
   return (
-    <div className="rounded-md border bg-card p-5">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-2 text-3xl font-bold tracking-tight">{value}</div>
-    </div>
+    <Link
+      to="/"
+      search={search}
+      className="group relative flex flex-col gap-0.5 rounded-md border border-border bg-card px-4 pb-4 pt-3.5 transition-colors hover:border-input hover:bg-muted/50"
+    >
+      <span className="pr-5 text-meta text-muted-foreground">{label}</span>
+      <span className="text-[28px] font-semibold leading-9 tracking-[-0.02em] tabular-nums">
+        {value}
+      </span>
+      {sub && <span className="text-xs leading-[18px] text-muted-foreground">{sub}</span>}
+      <ArrowUpRight
+        aria-hidden
+        className="absolute right-3 top-3.5 h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground"
+      />
+    </Link>
   );
 }
 
 function ChartCard({
   title,
   description,
+  note,
   children,
 }: {
   title: ReactNode;
   description?: string;
+  /** Kort förklaring till höger om rubriken */
+  note?: string;
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-md border bg-card p-5">
-      <h2 className="text-base font-semibold">{title}</h2>
-      {description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
-      <div className="mt-4">{children}</div>
-    </div>
+    <section className="rounded-md border border-border bg-card px-5 pb-5 pt-[18px]">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-[15px] font-semibold leading-[22px]">{title}</h2>
+        {note && <span className="text-xs leading-[18px] text-muted-foreground">{note}</span>}
+      </div>
+      {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+      <div className="mt-3.5">{children}</div>
+    </section>
   );
 }

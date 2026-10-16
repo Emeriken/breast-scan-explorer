@@ -14,7 +14,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
   Info,
   Presentation,
   Printer,
@@ -22,21 +21,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CategoryTag, PubDateDisplay } from "@/components/ArticleMeta";
-import { DeepAnalysisList, hasDeepAnalysis } from "@/components/DeepAnalysis";
+import { AiSections, ArticleHeading, ArticleLinks } from "@/components/ArticleParts";
 import { ErrorState } from "@/components/ErrorState";
 import { DisclaimerFooter } from "@/components/Footer";
-import { JournalBadge } from "@/components/JournalBadge";
-import { AiTag } from "@/components/Labels";
-import { MeshTags } from "@/components/MeshTags";
-import { RegulatoryBadges, RegulatorySection, hasIndications } from "@/components/RegulatoryBadges";
-import { ScoreBadge } from "@/components/Score";
+import { ArticleCard } from "@/components/list/ArticleCard";
+import { RegulatorySection, hasIndications } from "@/components/RegulatoryBadges";
 import { Segmented } from "@/components/Segmented";
-import { articlesQueryOptions, pubmedUrl, PRODUCT_NAME, type Article } from "@/lib/articles";
-import { externalLinkProps } from "@/lib/categories";
+import { articlesQueryOptions, PRODUCT_NAME, type Article } from "@/lib/articles";
 import { pmidFromUrl, parsePubDateToMonth } from "@/lib/journals";
 import { noticeFor } from "@/lib/notices";
-import { authorLine } from "@/lib/regulatory";
 import { cn } from "@/lib/utils";
 
 /** Rättelser, indragningar och kommentarer är inte presentationskandidater. */
@@ -96,7 +89,7 @@ export const Route = createFileRoute("/manadens-artikel")({
   validateSearch: (search) => searchSchema.parse(search),
   head: () => ({
     meta: [
-      { title: `Månadens artikel · ${PRODUCT_NAME}` },
+      { title: `Journal club · ${PRODUCT_NAME}` },
       {
         name: "description",
         content:
@@ -127,7 +120,7 @@ function CandidatesInfo() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="hit-area inline-flex items-center gap-1 text-xs font-medium text-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
+          className="hit-area inline-flex items-center gap-1.5 text-meta font-medium text-ink-2 underline-offset-2 hover:text-foreground hover:underline"
         >
           <Info aria-hidden className="h-3.5 w-3.5" />
           Så väljs kandidaterna
@@ -184,11 +177,11 @@ function MonthStepper({
   const years = Array.from(new Set(keys.map((k) => fromMonthKey(k).year)));
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex w-full items-center gap-1.5 sm:w-auto">
       <Button
         variant="outline"
         size="icon"
-        className="hit-area"
+        className="hit-area shrink-0"
         disabled={prevDisabled}
         aria-label={`Föregående månad: ${MONTHS_SV[prev.month - 1]} ${prev.year}`}
         onClick={() => onChange(prev.year, prev.month)}
@@ -199,14 +192,17 @@ function MonthStepper({
         <PopoverTrigger asChild>
           <Button
             variant="outline"
-            className="h-9 min-w-[12rem] flex-1 justify-between gap-2 font-medium"
+            className="h-9 min-w-0 flex-1 justify-between gap-2 px-3 text-[13px] font-normal sm:flex-none"
             aria-label={`Publiceringsmånad: ${MONTHS_SV[month - 1]} ${year}. Välj månad`}
           >
-            <span className="flex items-center gap-2">
-              <CalendarDays aria-hidden className="h-4 w-4 opacity-60" />
-              {MONTHS_SV[month - 1]} {year}
+            <span className="flex min-w-0 items-center gap-2">
+              <CalendarDays aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="text-muted-foreground">Publicerad:</span>
+              <span className="truncate font-semibold">
+                {MONTHS_SV[month - 1]} {year}
+              </span>
             </span>
-            <ChevronDown aria-hidden className="h-4 w-4 opacity-60" />
+            <ChevronDown aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </Button>
         </PopoverTrigger>
         <PopoverContent
@@ -252,7 +248,7 @@ function MonthStepper({
       <Button
         variant="outline"
         size="icon"
-        className="hit-area"
+        className="hit-area shrink-0"
         disabled={nextDisabled}
         aria-label={`Nästa månad: ${MONTHS_SV[next.month - 1]} ${next.year}`}
         onClick={() => onChange(next.year, next.month)}
@@ -390,47 +386,55 @@ function ManadensArtikel() {
     setSearch({ prepare: pmid ? Number(pmid) : a.url }, { push: true });
   };
 
+  const monthLabel = `${MONTHS_SV[month - 1].toLowerCase()} ${year}`;
+  const card = (a: Article) => (
+    <ArticleCard
+      key={a.pmid ?? a.url}
+      article={a}
+      query={null}
+      listSearch={{}}
+      meshMerge={false}
+      actions={
+        <Button variant="outline" onClick={() => prepare(a)}>
+          <Presentation aria-hidden className="h-4 w-4" />
+          Förbered presentation
+        </Button>
+      }
+    />
+  );
+
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border/70 bg-background">
-        <div className="mx-auto max-w-5xl px-4 py-5 sm:py-7">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Månadens artikel</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Presentationskandidater för journal club, 15 minuter.
+      <main id="content" tabIndex={-1} className="mx-auto max-w-5xl px-4 pb-8 outline-none">
+        <div className="flex flex-col gap-1 pb-4 pt-6 sm:pt-7">
+          <h1 className="text-2xl font-semibold leading-[30px] tracking-[-0.02em]">Journal club</h1>
+          <p className="text-sm leading-[22px] text-muted-foreground">
+            Månadens artikel: presentationskandidater för 15 minuter.
           </p>
         </div>
-      </header>
 
-      <main id="content" tabIndex={-1} className="mx-auto max-w-5xl px-4 py-5 outline-none">
         <section
           aria-label="Välj område och månad"
-          className="rounded-md border bg-card p-4 sm:p-5"
+          className="flex flex-wrap items-center gap-x-3 gap-y-2.5 border-y border-border py-3"
         >
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div className="w-full md:max-w-md">
-              <Segmented
-                label="Behandlingsområde"
-                value={treatment}
-                options={TREATMENTS.map((t) => ({ value: t.key, label: t.short, title: t.label }))}
-                onChange={(t) => setSearch({ treatment: t })}
-                fill
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="flex h-6 items-center text-xs font-medium text-muted-foreground">
-                Publiceringsmånad
-              </span>
-              <MonthStepper
-                year={year}
-                month={month}
-                counts={monthStats.byTreatment[treatment]}
-                firstKey={monthStats.first}
-                lastKey={monthStats.last}
-                onChange={(y, m) => setSearch({ year: y, month: m })}
-              />
-            </div>
-          </div>
-          <div className="mt-3">
+          <Segmented
+            inline
+            label="Område"
+            ariaLabel="Behandlingsområde"
+            value={treatment}
+            options={TREATMENTS.map((t) => ({ value: t.key, label: t.short, title: t.label }))}
+            onChange={(t) => setSearch({ treatment: t })}
+            className="max-w-full overflow-x-auto"
+          />
+          <MonthStepper
+            year={year}
+            month={month}
+            counts={monthStats.byTreatment[treatment]}
+            firstKey={monthStats.first}
+            lastKey={monthStats.last}
+            onChange={(y, m) => setSearch({ year: y, month: m })}
+          />
+          <div className="ml-auto">
             <CandidatesInfo />
           </div>
         </section>
@@ -448,12 +452,10 @@ function ManadensArtikel() {
 
           {!isLoading && !error && list.length === 0 && (
             <div className="rounded-md border border-dashed border-input p-8 text-center sm:p-10">
-              <p className="font-medium">
-                Inga kandidater för {MONTHS_SV[month - 1].toLowerCase()} {year}.
-              </p>
+              <p className="font-medium">Inga kandidater för {monthLabel}.</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Inga artiklar inom {treatmentDef.label.toLowerCase()} med AI-relevans 3 eller högre
-                har publiceringsmånad {MONTHS_SV[month - 1].toLowerCase()} {year}.
+                har publiceringsmånad {monthLabel}.
               </p>
               {showJumpToLatest && latestCandidate && (
                 <Button
@@ -473,44 +475,48 @@ function ManadensArtikel() {
 
           {!isLoading && !error && list.length > 0 && (
             <>
-              <h2 className="mb-3 text-lg font-semibold">
-                {useFallback ? "AI-relevans 3" : "AI-relevans 4–5"}{" "}
-                <span className="text-sm font-normal text-muted-foreground">({list.length})</span>
-              </h2>
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h2 className="text-[17px] font-semibold leading-6 tracking-[-0.01em]">
+                  {useFallback ? "AI-relevans 3" : "AI-relevans 4–5"}{" "}
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {treatmentDef.label}, {monthLabel}
+                  </span>
+                </h2>
+                <p className="text-meta text-muted-foreground">
+                  {list.length} {list.length === 1 ? "kandidat" : "kandidater"}
+                </p>
+              </div>
               {useFallback && (
-                <div className="mb-4 rounded-md border border-warn-line bg-warn-bg p-3 text-sm text-warn">
+                <div className="mb-3 rounded-md border border-warn-line bg-warn-bg p-3 text-sm text-warn">
                   Inga artiklar med AI-relevans 4–5 den här månaden. Visar artiklar med AI-relevans
                   3 i stället.
                 </div>
               )}
-              <div className="space-y-4">
-                {list.map((a) => (
-                  <CandidateCard key={a.pmid ?? a.url} article={a} onPrepare={() => prepare(a)} />
-                ))}
-              </div>
+              <div className="flex flex-col gap-3">{list.map(card)}</div>
             </>
           )}
         </section>
 
         {!isLoading && !error && otherTopArticles.length > 0 && (
-          <section className="mt-8 border-t pt-8">
+          <section className="mt-10" aria-labelledby="andra-omraden">
             <div className="mb-3">
-              <h2 className="text-lg font-semibold">
-                AI-relevans 4–5 i andra områden
-                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  ({otherTopArticles.length})
-                </span>
-              </h2>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h2
+                  id="andra-omraden"
+                  className="text-[17px] font-semibold leading-6 tracking-[-0.01em]"
+                >
+                  AI-relevans 4–5 i andra områden
+                </h2>
+                <p className="text-meta text-muted-foreground">
+                  {otherTopArticles.length} {otherTopArticles.length === 1 ? "artikel" : "artiklar"}
+                </p>
+              </div>
               <p className="mt-1 text-sm text-muted-foreground">
-                Från {MONTHS_SV[month - 1].toLowerCase()} {year}. Värdefulla att lyfta om inget med
-                hög AI-relevans finns i ditt eget område.
+                Från {monthLabel}. Värdefulla att lyfta om inget med hög AI-relevans finns i ditt
+                eget område.
               </p>
             </div>
-            <div className="space-y-4">
-              {otherTopArticles.map((a) => (
-                <CandidateCard key={a.pmid ?? a.url} article={a} onPrepare={() => prepare(a)} />
-              ))}
-            </div>
+            <div className="flex flex-col gap-3">{otherTopArticles.map(card)}</div>
           </section>
         )}
       </main>
@@ -522,101 +528,6 @@ function ManadensArtikel() {
 function sortByScoreThenDate(a: Article, b: Article) {
   if (b.relevance_score !== a.relevance_score) return b.relevance_score - a.relevance_score;
   return (b.scored_at ?? "").localeCompare(a.scored_at ?? "");
-}
-
-function ArticleTitleLink({ article }: { article: Article }) {
-  const pmid = pmidOf(article);
-  if (pmid) {
-    return (
-      <Link
-        to="/article/$pmid"
-        params={{ pmid }}
-        className="text-foreground underline-offset-2 hover:underline"
-      >
-        {article.title}
-      </Link>
-    );
-  }
-  return (
-    <a
-      href={article.url}
-      {...externalLinkProps}
-      className="text-foreground underline-offset-2 hover:underline"
-    >
-      {article.title}
-      <ExternalLink aria-hidden className="ml-1 inline h-3.5 w-3.5 align-baseline opacity-60" />
-    </a>
-  );
-}
-
-function CandidateCard({ article, onPrepare }: { article: Article; onPrepare: () => void }) {
-  const [open, setOpen] = useState(false);
-  const da = article.deep_analysis;
-
-  return (
-    <article className="rounded-md border bg-card p-4 sm:p-5">
-      <div className="flex flex-col gap-2.5">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <ScoreBadge score={article.relevance_score} />
-            <CategoryTag category={article.category} />
-          </div>
-          <span className="text-meta text-muted-foreground">
-            <PubDateDisplay pubDate={article.pub_date} />
-          </span>
-        </div>
-
-        <h3 className="text-base font-semibold leading-snug sm:text-lg">
-          <ArticleTitleLink article={article} />
-        </h3>
-
-        <div className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground/80">{article.journal}</span>
-          <JournalBadge journal={article.journal} />
-        </div>
-
-        <MeshTags terms={article.mesh_terms} variant="card" />
-
-        <RegulatoryBadges reg={article.regulatory} />
-
-        {article.why_relevant && (
-          <p className="rounded-md border border-border/60 bg-muted/40 p-3 text-sm text-foreground/85">
-            <AiTag className="mr-1.5" />
-            <span className="font-semibold text-foreground">Motivering: </span>
-            {article.why_relevant}
-          </p>
-        )}
-
-        {hasDeepAnalysis(da) && (
-          <div>
-            <button
-              type="button"
-              onClick={() => setOpen((v) => !v)}
-              className="hit-area inline-flex min-h-8 items-center gap-1 text-sm font-medium text-foreground/80 hover:text-foreground hover:underline"
-              aria-expanded={open}
-            >
-              <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
-              {open ? "Dölj djupanalys" : "Visa djupanalys"}
-            </button>
-            {open && <DeepAnalysisList da={da} className="mt-2" />}
-          </div>
-        )}
-
-        <div className="flex flex-wrap gap-2 pt-1">
-          <Button variant="outline" onClick={onPrepare}>
-            <Presentation className="h-4 w-4" />
-            Förbered presentation
-          </Button>
-          <Button asChild variant="ghost">
-            <a href={pubmedUrl(article)} {...externalLinkProps}>
-              Öppna i PubMed
-              <ExternalLink className="h-4 w-4" />
-            </a>
-          </Button>
-        </div>
-      </div>
-    </article>
-  );
 }
 
 const CHECKLIST_ITEMS = [
@@ -635,30 +546,33 @@ function PrepareView({ article, onBack }: { article: Article; onBack: () => void
   const storageKey = `presentation-checklist:${article.url}`;
   const [checked, setChecked] = useState<boolean[]>(() => CHECKLIST_ITEMS.map(() => false));
   const [printIndications, setPrintIndications] = useState(false);
+  // Spara först när den sparade listan för just den här artikeln är inläst,
+  // annars skrivs den över med en tom lista innan den hunnit läsas in.
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    let next = CHECKLIST_ITEMS.map(() => false);
     try {
       const raw = window.localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length === CHECKLIST_ITEMS.length) {
-          setChecked(parsed.map(Boolean));
-        }
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed) && parsed.length === CHECKLIST_ITEMS.length) {
+        next = parsed.map(Boolean);
       }
     } catch {
-      // ignore
+      // Lagring blockerad eller trasig: börja med en tom lista
     }
+    setChecked(next);
+    setLoadedKey(storageKey);
   }, [storageKey]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (loadedKey !== storageKey) return;
     try {
       window.localStorage.setItem(storageKey, JSON.stringify(checked));
     } catch {
-      // ignore
+      // Lagring blockerad: listan gäller bara den här sidvisningen
     }
-  }, [storageKey, checked]);
+  }, [storageKey, checked, loadedKey]);
 
   useEffect(() => {
     document.title = `Förbered: ${article.title.slice(0, 50)} · ${PRODUCT_NAME}`;
@@ -666,8 +580,6 @@ function PrepareView({ article, onBack }: { article: Article; onBack: () => void
 
   const toggle = (i: number) => setChecked((arr) => arr.map((v, idx) => (idx === i ? !v : v)));
   const done = checked.filter(Boolean).length;
-  const authors = authorLine(article.authors, article.author_count);
-  const da = article.deep_analysis;
 
   return (
     <div className="min-h-screen bg-background">
@@ -678,7 +590,12 @@ function PrepareView({ article, onBack }: { article: Article; onBack: () => void
       >
         <div className="max-w-3xl print:max-w-none">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-            <Button variant="ghost" size="sm" className="hit-area -ml-3" onClick={onBack}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="hit-area -ml-2 px-2 text-sm text-ink-2"
+              onClick={onBack}
+            >
               <ArrowLeft className="h-4 w-4" />
               Tillbaka till kandidater
             </Button>
@@ -699,66 +616,22 @@ function PrepareView({ article, onBack }: { article: Article; onBack: () => void
             </div>
           </div>
 
-          <article className="rounded-md border bg-card p-5 sm:p-6 print:rounded-none print:border-0 print:p-0">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <ScoreBadge score={article.relevance_score} />
-              <CategoryTag category={article.category} />
-            </div>
-            <h1 className="text-xl font-bold leading-tight sm:text-2xl">{article.title}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground/80">{article.journal}</span> ·{" "}
-              <PubDateDisplay pubDate={article.pub_date} />
-              {article.doi && <span> · DOI: {article.doi}</span>}
-            </p>
-            {authors && <p className="mt-1 text-meta text-muted-foreground">{authors}</p>}
-
-            <div className="mt-3 flex flex-wrap gap-2 print:hidden">
-              <Button asChild variant="outline" size="sm">
-                <a href={pubmedUrl(article)} {...externalLinkProps}>
-                  Öppna i PubMed
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </Button>
-              {article.doi && (
-                <Button asChild variant="outline" size="sm">
-                  <a href={`https://doi.org/${article.doi}`} {...externalLinkProps}>
-                    DOI
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                </Button>
-              )}
-            </div>
-
-            {article.why_relevant && (
-              <div className="mt-5">
-                <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  <AiTag />
-                  Motivering
-                </h2>
-                <p className="mt-1 text-sm">{article.why_relevant}</p>
-              </div>
-            )}
-
-            {hasDeepAnalysis(da) && (
-              <div className="mt-5">
-                <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  <AiTag />
-                  Djupanalys
-                </h2>
-                <DeepAnalysisList da={da} className="mt-2" />
-              </div>
-            )}
-
+          <article className="flex flex-col rounded-md border border-border bg-card px-5 pb-7 pt-6 sm:px-8 sm:pb-8 sm:pt-7 print:rounded-none print:border-0 print:p-0">
+            <ArticleHeading article={article} doiInline />
+            <ArticleLinks article={article} className="mt-[18px] print:hidden" />
+            <AiSections article={article} />
             <RegulatorySection
               reg={article.regulatory}
               printIndications={printIndications}
-              className="mt-5"
+              className="mt-7 border-t border-border pt-6"
             />
           </article>
 
-          <section className="mt-6 rounded-md border bg-card p-5 sm:p-6 print:mt-8 print:rounded-none print:border-0 print:p-0">
+          <section className="mt-4 rounded-md border border-border bg-card px-5 py-6 sm:px-8 print:mt-8 print:rounded-none print:border-0 print:p-0">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-lg font-semibold">Checklista för 15 minuter journal club</h2>
+              <h2 className="text-[17px] font-semibold leading-6 tracking-[-0.01em]">
+                Checklista för 15 minuter journal club
+              </h2>
               <p className="text-meta text-muted-foreground print:hidden" aria-live="polite">
                 {done} av {CHECKLIST_ITEMS.length} klara
                 {done > 0 && (

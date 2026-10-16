@@ -9,28 +9,16 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CategoryTag, PubDateDisplay } from "@/components/ArticleMeta";
-import { DeepAnalysisList, hasDeepAnalysis } from "@/components/DeepAnalysis";
+import { AiSections, ArticleHeading, ArticleLinks, PubMedSection } from "@/components/ArticleParts";
 import { ErrorState } from "@/components/ErrorState";
 import { DisclaimerFooter } from "@/components/Footer";
-import { JournalBadge } from "@/components/JournalBadge";
-import { AiTag, NoticeBadge } from "@/components/Labels";
-import { MeshTags } from "@/components/MeshTags";
 import { RegulatorySection } from "@/components/RegulatoryBadges";
-import { ScoreBadge } from "@/components/Score";
 import { isTypingTarget } from "@/components/ShortcutsProvider";
 import { articleSearchSchema, hasActiveFilters, type ArticleSearch } from "@/lib/article-search";
 import { listArticles } from "@/lib/article-list";
-import {
-  articlesQueryOptions,
-  pubmedUrl,
-  PRODUCT_NAME,
-  shortTitle,
-  type Article,
-} from "@/lib/articles";
+import { articlesQueryOptions, PRODUCT_NAME, shortTitle, type Article } from "@/lib/articles";
 import { externalLinkProps } from "@/lib/categories";
 import { pmidFromUrl } from "@/lib/journals";
-import { authorLine } from "@/lib/regulatory";
 
 export const Route = createFileRoute("/article/$pmid")({
   // Listans filter följer med i URL:en, så att Föregående och Nästa går i
@@ -66,7 +54,7 @@ function Pager({
   filtered: boolean;
 }) {
   const linkClass =
-    "hit-area inline-flex h-8 items-center gap-1 rounded-md px-2 text-sm font-medium text-foreground/80 hover:bg-muted hover:text-foreground";
+    "hit-area inline-flex h-8 items-center gap-1 rounded-md px-2 text-sm font-medium text-ink-2 hover:bg-muted hover:text-foreground";
   const prevPmid = prev ? pmidOf(prev) : null;
   const nextPmid = next ? pmidOf(next) : null;
   return (
@@ -123,8 +111,6 @@ function ArticleDetail() {
   const goBack = () => (canGoBack ? router.history.back() : router.navigate({ to: "/", search }));
 
   const article = data?.articles.find((a) => pmidOf(a) === pmid);
-  const authors = article ? authorLine(article.authors, article.author_count) : "";
-  const da = article?.deep_analysis;
 
   const list = useMemo(() => (data ? listArticles(data.articles, search) : []), [data, search]);
   const idx = article ? list.findIndex((a) => pmidOf(a) === pmid) : -1;
@@ -160,10 +146,15 @@ function ArticleDetail() {
 
   return (
     <div className="min-h-screen bg-background">
-      <main id="content" tabIndex={-1} className="mx-auto max-w-5xl px-4 py-6 outline-none">
+      <main id="content" tabIndex={-1} className="mx-auto max-w-5xl px-4 py-5 outline-none">
         <div className="max-w-3xl">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <Button variant="ghost" size="sm" className="hit-area -ml-3" onClick={goBack}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="hit-area -ml-2 px-2 text-sm text-ink-2"
+              onClick={goBack}
+            >
               <ArrowLeft className="h-4 w-4" />
               Tillbaka
             </Button>
@@ -209,70 +200,15 @@ function ArticleDetail() {
           )}
 
           {article && (
-            <article className="rounded-md border bg-card p-5 sm:p-6">
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <ScoreBadge score={article.relevance_score} />
-                <NoticeBadge title={article.title} publicationTypes={article.publication_types} />
-                <CategoryTag category={article.category} />
-              </div>
-              <h1 className="text-xl font-bold leading-tight sm:text-2xl">{article.title}</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground/80">{article.journal}</span>
-                <JournalBadge journal={article.journal} />
-                <span>
-                  {" "}
-                  · <PubDateDisplay pubDate={article.pub_date} />
-                </span>
-              </p>
-              {authors && <p className="mt-2 text-meta text-muted-foreground">{authors}</p>}
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button asChild>
-                  <a href={pubmedUrl(article)} {...externalLinkProps}>
-                    Öppna i PubMed
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                </Button>
-                {article.doi && (
-                  <Button asChild variant="outline" className="max-w-full">
-                    <a href={`https://doi.org/${article.doi}`} {...externalLinkProps}>
-                      <span className="truncate">DOI: {article.doi}</span>
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </Button>
-                )}
-              </div>
-
-              {article.why_relevant && (
-                <section className="mt-6">
-                  <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <AiTag />
-                    Motivering
-                  </h2>
-                  <p className="mt-1 text-sm">{article.why_relevant}</p>
-                </section>
-              )}
-
-              {hasDeepAnalysis(da) && (
-                <section className="mt-6">
-                  <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <AiTag />
-                    Djupanalys
-                  </h2>
-                  <DeepAnalysisList da={da} className="mt-2" />
-                </section>
-              )}
-
-              <RegulatorySection reg={article.regulatory} className="mt-6" />
-
-              {article.mesh_terms && article.mesh_terms.length > 0 && (
-                <section className="mt-6">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    MeSH-termer
-                  </h2>
-                  <MeshTags terms={article.mesh_terms} className="mt-2" />
-                </section>
-              )}
+            <article className="flex flex-col rounded-md border border-border bg-card px-5 pb-7 pt-6 sm:px-8 sm:pb-8 sm:pt-7">
+              <ArticleHeading article={article} />
+              <ArticleLinks article={article} className="mt-[18px]" />
+              <AiSections article={article} />
+              <RegulatorySection
+                reg={article.regulatory}
+                className="mt-7 border-t border-border pt-6"
+              />
+              <PubMedSection article={article} />
             </article>
           )}
         </div>

@@ -103,7 +103,7 @@ export function Legend({ className }: { className?: string }) {
           >
             Indragen, förbehåll (expression of concern), rättelse och kommentar är tolkat utifrån
             titeln. Indragen kan också komma från PubMeds publikationstyp. Sådana poster räknas inte
-            som kandidater till Månadens artikel.
+            som kandidater i Journal club.
           </Row>
           <Row
             sample={

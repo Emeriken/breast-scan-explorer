@@ -7,11 +7,12 @@ export const externalLinkProps = {
 /**
  * Centrala diagramfärger för statistikvyn, som CSS-variabler så att de följer
  * ljust och mörkt tema (se styles.css). Alla diagram har en enda serie och
- * samma färg; kategorierna har ingen egen färg (de står alltid i text).
+ * samma färg, ibland dämpad; kategorierna har ingen egen färg (de står
+ * alltid i text).
  */
 export const CHART_COLORS = {
-  bar: "var(--chart-bar)", // En serie (relevanspoäng, tidskrifter, nivåer, månader)
-  partial: "var(--chart-partial)", // Ofullständig period, t.ex. innevarande månad
+  bar: "var(--chart-bar)", // Staplarna
+  soft: "var(--chart-partial)", // Dämpade staplar: AI-relevans 1–3 och innevarande månad
   tick: "var(--chart-tick)", // Axeltext
   label: "var(--chart-label)", // Värden vid staplarna
   grid: "var(--chart-grid)", // Axellinjer

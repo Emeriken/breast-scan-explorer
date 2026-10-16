@@ -9,6 +9,7 @@ export type SegmentOption<T> = { value: T; label: string; title?: string };
  */
 export function Segmented<T extends string | number | undefined>({
   label,
+  ariaLabel,
   value,
   options,
   onChange,
@@ -18,6 +19,8 @@ export function Segmented<T extends string | number | undefined>({
   className,
 }: {
   label: string;
+  /** Namn för skärmläsare om etiketten är förkortad, t.ex. "Område" */
+  ariaLabel?: string;
   value: T | "__none__";
   options: SegmentOption<T>[];
   onChange: (v: T) => void;
@@ -29,7 +32,7 @@ export function Segmented<T extends string | number | undefined>({
   const group = (
     <div
       role="group"
-      aria-label={label}
+      aria-label={ariaLabel ?? label}
       className={cn(
         "inline-flex h-9 items-center rounded-md border border-input bg-card p-0.5",
         fill && "flex w-full",
