@@ -5,9 +5,23 @@ import { NewBadge } from "@/components/Labels";
 import { RubricList, ScoreBadge } from "@/components/Score";
 import { cn } from "@/lib/utils";
 
-function Row({ sample, children }: { sample: ReactNode; children: ReactNode }) {
+/** Exempel och förklaring bredvid varandra. `stack` lägger exemplet ovanför, för breda märken. */
+function Row({
+  sample,
+  stack,
+  children,
+}: {
+  sample: ReactNode;
+  stack?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <div className="grid grid-cols-[6.5rem_1fr] items-start gap-3 py-2">
+    <div
+      className={cn(
+        "grid items-start py-2",
+        stack ? "grid-cols-1 gap-2" : "grid-cols-[6.5rem_1fr] gap-3",
+      )}
+    >
       <div className="flex flex-wrap gap-1 pt-0.5">{sample}</div>
       <div className="text-xs leading-relaxed text-muted-foreground">{children}</div>
     </div>
@@ -40,7 +54,7 @@ export function Legend({ className }: { className?: string }) {
       >
         <p className="text-sm font-semibold">Så läser du kortet</p>
         <div className="mt-1 divide-y">
-          <Row sample={<ScoreBadge score={4} />}>
+          <Row stack sample={<ScoreBadge score={4} />}>
             <p>
               Claude poängsätter varje artikel utifrån tidskrift, titel, MeSH-termer och abstract:
             </p>
