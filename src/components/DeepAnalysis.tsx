@@ -23,7 +23,7 @@ export function hasDeepAnalysis(da: DeepAnalysisData | undefined): da is Fields 
 /** Djupanalysen som rutnät, med tydlig AI-märkning. Används på alla sidor. */
 export function DeepAnalysisList({ da, className }: { da: Fields; className?: string }) {
   return (
-    <div className={cn("rounded-lg border border-dashed bg-background p-4 text-sm", className)}>
+    <div className={cn("rounded-md border border-dashed bg-background p-4 text-sm", className)}>
       <dl className="grid gap-3 sm:grid-cols-2">
         {FIELDS.map(([k, label]) =>
           da[k] ? (

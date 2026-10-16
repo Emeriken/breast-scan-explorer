@@ -274,7 +274,7 @@ export function RegulatorySection({
       </h2>
       <div className={cn("mt-2 grid gap-3", reg.substances.length > 1 && "sm:grid-cols-2")}>
         {reg.substances.map((s) => (
-          <div key={s.key} className="rounded-lg border border-border/70 p-3 break-inside-avoid">
+          <div key={s.key} className="rounded-md border border-border p-3 break-inside-avoid">
             <SubstanceDetails s={s} print={printIndications} />
           </div>
         ))}

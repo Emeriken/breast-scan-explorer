@@ -46,6 +46,15 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
+  /* Visuell profil (se :root nedan) */
+  --color-ink-2: var(--ink-2);
+  --color-line-strong: var(--input);
+  --color-brand: var(--brand);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-line: var(--danger-line);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-warn-line: var(--warn-line);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -61,27 +70,40 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/*
+ * Visuell profil: varm neutral grund, vita ytor, svart text och ett enda
+ * rött märke. SÖS-rött (--brand) används bara i sidhuvudet (märket och aktiv
+ * flik), aldrig i innehållet, där rött betyder indragen artikel eller fel.
+ * Kontrast mot ytan: text 17,3:1, text 2 10,4:1, dämpad text 6,0:1.
+ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.985 0.004 80);
-  --foreground: oklch(0.21 0.01 250);
+  --radius: 0.5rem;
+  --background: oklch(0.976 0.004 91.4);
+  --foreground: oklch(0.22 0.007 67.4);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.01 250);
+  --card-foreground: oklch(0.22 0.007 67.4);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.01 250);
-  --primary: oklch(0.21 0.01 250);
-  --primary-foreground: oklch(0.99 0.002 250);
-  --secondary: oklch(0.965 0.003 250);
-  --secondary-foreground: oklch(0.28 0.01 250);
-  --muted: oklch(0.965 0.003 250);
-  --muted-foreground: oklch(0.5 0.008 250);
-  --accent: oklch(0.94 0.005 250);
-  --accent-foreground: oklch(0.25 0.01 250);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.915 0.004 250);
-  --input: oklch(0.915 0.004 250);
-  --ring: oklch(0.21 0.01 250);
+  --popover-foreground: oklch(0.22 0.007 67.4);
+  --primary: oklch(0.22 0.007 67.4);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.958 0.005 95.1);
+  --secondary-foreground: oklch(0.37 0.009 67.6);
+  --muted: oklch(0.958 0.005 95.1);
+  --muted-foreground: oklch(0.499 0.009 61.3);
+  --accent: oklch(0.937 0.007 88.6);
+  --accent-foreground: oklch(0.22 0.007 67.4);
+  --destructive: oklch(0.5 0.182 29.5);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.904 0.006 84.6);
+  --input: oklch(0.82 0.009 91.5);
+  --ring: oklch(0.22 0.007 67.4);
+  --ink-2: oklch(0.37 0.009 67.6);
+  --brand: oklch(0.481 0.195 25.2);
+  --danger-bg: oklch(0.956 0.019 25.6);
+  --danger-line: oklch(0.858 0.059 24.9);
+  --warn: oklch(0.479 0.11 58.6);
+  --warn-bg: oklch(0.967 0.026 82.4);
+  --warn-line: oklch(0.878 0.072 81.9);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -95,34 +117,41 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
-  /* Diagram (Statistik): en serie, axeltext, värden, rutnät */
-  --chart-bar: oklch(0.37 0.012 250);
-  --chart-partial: oklch(0.74 0.008 250);
-  --chart-tick: oklch(0.52 0.01 250);
-  --chart-label: oklch(0.42 0.01 250);
-  --chart-grid: oklch(0.91 0.004 250);
+  /* Diagram (Statistik): betonad stapel, övriga staplar, axeltext, värden, axel */
+  --chart-bar: oklch(0.37 0.009 67.6);
+  --chart-partial: oklch(0.636 0.012 76.6);
+  --chart-tick: oklch(0.499 0.009 61.3);
+  --chart-label: oklch(0.37 0.009 67.6);
+  --chart-grid: oklch(0.82 0.009 91.5);
 }
 
 .dark {
-  --background: oklch(0.17 0.006 250);
-  --foreground: oklch(0.95 0.004 80);
-  --card: oklch(0.21 0.007 250);
-  --card-foreground: oklch(0.95 0.004 80);
-  --popover: oklch(0.23 0.008 250);
-  --popover-foreground: oklch(0.95 0.004 80);
-  --primary: oklch(0.95 0.004 80);
-  --primary-foreground: oklch(0.2 0.008 250);
-  --secondary: oklch(0.28 0.008 250);
-  --secondary-foreground: oklch(0.95 0.004 80);
-  --muted: oklch(0.27 0.008 250);
-  --muted-foreground: oklch(0.74 0.01 250);
-  --accent: oklch(0.3 0.009 250);
-  --accent-foreground: oklch(0.97 0.004 80);
-  --destructive: oklch(0.7 0.19 22.2);
-  --destructive-foreground: oklch(0.98 0.003 250);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 18%);
-  --ring: oklch(0.85 0.01 250);
+  --background: oklch(0.164 0.004 84.6);
+  --foreground: oklch(0.946 0.005 95.1);
+  --card: oklch(0.202 0.005 67.5);
+  --card-foreground: oklch(0.946 0.005 95.1);
+  --popover: oklch(0.232 0.005 67.6);
+  --popover-foreground: oklch(0.946 0.005 95.1);
+  --primary: oklch(0.946 0.005 95.1);
+  --primary-foreground: oklch(0.202 0.005 67.5);
+  --secondary: oklch(0.236 0.005 67.6);
+  --secondary-foreground: oklch(0.83 0.006 84.6);
+  --muted: oklch(0.236 0.005 67.6);
+  --muted-foreground: oklch(0.71 0.008 80.7);
+  --accent: oklch(0.261 0.006 78.2);
+  --accent-foreground: oklch(0.946 0.005 95.1);
+  --destructive: oklch(0.709 0.17 26.5);
+  --destructive-foreground: oklch(0.164 0.004 84.6);
+  --border: oklch(0.3 0.006 56.2);
+  --input: oklch(0.4 0.009 67.6);
+  --ring: oklch(0.946 0.005 95.1);
+  --ink-2: oklch(0.83 0.006 84.6);
+  --brand: oklch(0.629 0.2 21.8);
+  --danger-bg: oklch(0.252 0.06 26.8);
+  --danger-line: oklch(0.37 0.1 27.9);
+  --warn: oklch(0.814 0.144 77.6);
+  --warn-bg: oklch(0.273 0.044 76.8);
+  --warn-line: oklch(0.399 0.071 78.1);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -136,11 +165,11 @@
   --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.551 0.027 264.364);
-  --chart-bar: oklch(0.8 0.01 250);
-  --chart-partial: oklch(0.52 0.01 250);
-  --chart-tick: oklch(0.74 0.01 250);
-  --chart-label: oklch(0.86 0.008 250);
-  --chart-grid: oklch(1 0 0 / 14%);
+  --chart-bar: oklch(0.83 0.006 84.6);
+  --chart-partial: oklch(0.527 0.011 72.6);
+  --chart-tick: oklch(0.71 0.008 80.7);
+  --chart-label: oklch(0.83 0.006 84.6);
+  --chart-grid: oklch(0.4 0.009 67.6);
 }
 
 @layer base {
@@ -160,7 +189,16 @@
    * En och samma fokusmarkering för tangentbordet överallt: 2 px ring med
    * 2 px luft, så att den syns även runt ifyllda knappar.
    */
-  :where(a[href], button, input, select, textarea, summary, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  :where(
+    a[href],
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role="button"],
+    [tabindex]:not([tabindex="-1"])
+  ):focus-visible {
     outline: 2px solid var(--color-ring);
     outline-offset: 2px;
   }
@@ -175,8 +213,14 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01", "tnum";
+    font-family:
+      "Inter",
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+    font-optical-sizing: auto;
     line-height: 1.6;
     font-size: 15px;
   }

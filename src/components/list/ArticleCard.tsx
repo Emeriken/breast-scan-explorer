@@ -42,7 +42,7 @@ export function ArticleCard({
   const Heading = headingLevel === 2 ? "h2" : "h3";
 
   return (
-    <article className="rounded-lg border border-border bg-card p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_1px_1px_rgba(0,0,0,0.05)] sm:p-5">
+    <article className="rounded-md border border-border bg-card p-4 sm:p-5">
       <div className="flex flex-col gap-2.5">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
           <div className="flex flex-wrap items-center gap-2">

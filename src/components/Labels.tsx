@@ -1,3 +1,4 @@
+import { Ban, MessageSquare, PencilLine, TriangleAlert, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { noticeFor, type NoticeKind } from "@/lib/notices";
@@ -6,7 +7,7 @@ import { noticeFor, type NoticeKind } from "@/lib/notices";
 export const AI_NOTE = "AI-genererad av Claude utifrån PubMed-posten. Inte kliniskt beslutsstöd.";
 
 const AI_TAG_CLASS =
-  "inline-flex items-center rounded-sm border border-border px-1 align-middle font-mono text-xs font-semibold uppercase leading-4 tracking-wider text-muted-foreground";
+  "inline-flex items-center rounded-sm border border-input px-1 align-middle font-mono text-xs font-semibold uppercase leading-4 tracking-wider text-muted-foreground";
 
 /**
  * Etikett som markerar att intilliggande text eller bedömning är AI-genererad.
@@ -50,12 +51,19 @@ export function AiTag({ className, static: isStatic }: { className?: string; sta
   );
 }
 
+/** Rött bara för indragna artiklar, gult för förbehåll, resten neutralt. Alltid ikon och text. */
 const NOTICE_TONE: Record<NoticeKind, string> = {
-  retraction: "border-destructive/40 bg-destructive/10 text-destructive",
-  concern:
-    "border-amber-300/70 bg-amber-50 text-amber-800 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-200",
-  correction: "border-border bg-muted text-muted-foreground",
-  comment: "border-border bg-muted text-muted-foreground",
+  retraction: "border-danger-line bg-danger-bg text-destructive",
+  concern: "border-warn-line bg-warn-bg text-warn",
+  correction: "border-input bg-muted text-ink-2",
+  comment: "border-input bg-muted text-ink-2",
+};
+
+const NOTICE_ICON: Record<NoticeKind, LucideIcon> = {
+  retraction: Ban,
+  concern: TriangleAlert,
+  correction: PencilLine,
+  comment: MessageSquare,
 };
 
 /**
@@ -75,14 +83,16 @@ export function NoticeBadge({
   const why = n.fromPubMed
     ? "Artikeln har dragits tillbaka enligt PubMed (Retracted Publication)."
     : "Tolkat utifrån titeln. Publikationstypen står i PubMed.";
+  const Icon = NOTICE_ICON[n.kind];
   return (
     <span
       title={why}
       className={cn(
-        "rounded-sm border px-1.5 text-xs font-semibold uppercase leading-5 tracking-wider",
+        "inline-flex h-[22px] shrink-0 items-center gap-1 rounded-sm border px-[7px] text-xs font-semibold leading-4",
         NOTICE_TONE[n.kind],
       )}
     >
+      <Icon aria-hidden className="h-3 w-3" strokeWidth={2.5} />
       {n.label}
       <span className="sr-only"> ({why})</span>
     </span>
@@ -94,7 +104,7 @@ export function NewBadge() {
   return (
     <span
       title="Kom med den senaste veckovisa uppdateringen"
-      className="rounded-sm bg-foreground px-1.5 text-xs font-semibold uppercase leading-5 tracking-wider text-background"
+      className="inline-flex h-5 items-center rounded-sm border border-foreground px-1.5 text-xs font-semibold leading-4 text-foreground"
     >
       Ny
     </span>

@@ -4,7 +4,7 @@ import { useMemo, type ReactNode } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { articlesQueryOptions, formatDate, PRODUCT_NAME } from "@/lib/articles";
 import type { ArticleSearch } from "@/lib/article-search";
-import { categoryColor, CHART_COLORS } from "@/lib/categories";
+import { CHART_COLORS } from "@/lib/categories";
 import { journalLevel } from "@/lib/journals";
 import { KiJlInfoTooltip } from "@/components/KiJlInfoTooltip";
 import { DisclaimerFooter } from "@/components/Footer";
@@ -132,11 +132,7 @@ function StatistikPage() {
   const byCategory = useMemo(() => {
     const m = new Map<string, number>();
     for (const a of articles) m.set(a.category, (m.get(a.category) ?? 0) + 1);
-    return Array.from(m, ([name, value]) => ({
-      name,
-      value,
-      color: categoryColor(name).solid,
-    })).sort((a, b) => b.value - a.value);
+    return Array.from(m, ([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   }, [articles]);
 
   const byScore = useMemo(() => {
@@ -217,7 +213,7 @@ function StatistikPage() {
         {isLoading && (
           <div className="grid gap-4 sm:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-32 animate-pulse rounded-xl border bg-card" />
+              <div key={i} className="h-32 animate-pulse rounded-md border bg-card" />
             ))}
           </div>
         )}
@@ -267,16 +263,13 @@ function StatistikPage() {
                     dataKey="value"
                     name="Artiklar"
                     isAnimationActive={false}
+                    fill={CHART_COLORS.bar}
                     radius={[0, 4, 4, 0]}
                     maxBarSize={BAR_SIZE}
                     label={{ position: "right", ...VALUE_LABEL }}
                     cursor="pointer"
                     onClick={(d: unknown) => openList(toCategory(barName(d)))}
-                  >
-                    {byCategory.map((d) => (
-                      <Cell key={d.name} fill={d.color} />
-                    ))}
-                  </Bar>
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -456,7 +449,7 @@ function StatistikPage() {
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
+    <div className="rounded-md border bg-card p-5">
       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </div>
@@ -475,7 +468,7 @@ function ChartCard({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
+    <div className="rounded-md border bg-card p-5">
       <h2 className="text-base font-semibold">{title}</h2>
       {description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
       <div className="mt-4">{children}</div>

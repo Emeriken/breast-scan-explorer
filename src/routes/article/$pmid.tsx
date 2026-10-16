@@ -179,14 +179,14 @@ function ArticleDetail() {
             )}
           </div>
 
-          {isLoading && <div className="h-60 animate-pulse rounded-xl border bg-card" />}
+          {isLoading && <div className="h-60 animate-pulse rounded-md border bg-card" />}
 
           {error && (
             <ErrorState title="Kunde inte ladda artikeln" error={error} onRetry={() => refetch()} />
           )}
 
           {!isLoading && !error && !article && (
-            <div className="rounded-xl border border-dashed p-8 text-center">
+            <div className="rounded-md border border-dashed border-input p-8 text-center">
               <h1 className="font-medium">Artikeln finns inte i listan.</h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 PMID {pmid} kan ha publicerats före bevakningen startade eller i en tidskrift som
@@ -209,7 +209,7 @@ function ArticleDetail() {
           )}
 
           {article && (
-            <article className="rounded-xl border bg-card p-5 shadow-sm sm:p-6">
+            <article className="rounded-md border bg-card p-5 sm:p-6">
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <ScoreBadge score={article.relevance_score} />
                 <NoticeBadge title={article.title} publicationTypes={article.publication_types} />

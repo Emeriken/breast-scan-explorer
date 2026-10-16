@@ -24,22 +24,38 @@ export const RUBRIC: { score: number; text: string }[] = [
   },
 ];
 
-const TONE: Record<number, string> = {
-  5: "border-foreground bg-foreground text-background",
-  4: "border-foreground/70 text-foreground",
-  3: "border-border text-foreground/85",
-  2: "border-border/70 text-muted-foreground",
-  1: "border-border/70 text-muted-foreground",
-  0: "border-border/70 text-muted-foreground",
+/** Ram och text per poäng: 5 fylld, 4 svart ram, 3 grå, 1–2 dämpad. */
+const TONE: Record<number, { box: string; off: string }> = {
+  5: { box: "border-foreground bg-foreground text-background", off: "bg-background/30" },
+  4: { box: "border-foreground text-foreground", off: "bg-input" },
+  3: { box: "border-input text-ink-2", off: "bg-border" },
+  2: { box: "border-border text-muted-foreground", off: "bg-border" },
+  1: { box: "border-border text-muted-foreground", off: "bg-border" },
+  0: { box: "border-border text-muted-foreground", off: "bg-border" },
 };
 
 export function roundScore(score: number) {
   return Math.max(0, Math.min(5, Math.round(score)));
 }
 
+/** Fem prickar där de fyllda visar poängen. Dekor: siffran bredvid bär informationen. */
+export function ScoreDots({ score, className }: { score: number; className?: string }) {
+  const n = roundScore(score);
+  return (
+    <span aria-hidden className={cn("inline-flex gap-0.5", className)}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <span
+          key={i}
+          className={cn("h-1.5 w-1.5 rounded-full", i <= n ? "bg-current" : TONE[n].off)}
+        />
+      ))}
+    </span>
+  );
+}
+
 /**
- * AI-relevans som text, t.ex. "AI-relevans 4/5". Tonen följer poängen så att
- * 4–5 syns först, men siffran bär alltid informationen.
+ * AI-relevans som "AI-relevans ●●●●○ 4". Siffran bär informationen, prickarna
+ * och tonen gör att 4–5 syns först. `sm` utan ordet, för listor.
  */
 export function ScoreBadge({
   score,
@@ -56,17 +72,15 @@ export function ScoreBadge({
     <span
       title={rubric ? `AI-relevans ${n} av 5: ${rubric}` : `AI-relevans ${n} av 5`}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border px-1.5 text-xs leading-5",
-        TONE[n],
+        "inline-flex h-[22px] shrink-0 items-center gap-[7px] whitespace-nowrap rounded-sm border px-[7px] text-xs font-medium leading-4",
+        TONE[n].box,
         className,
       )}
     >
-      {size === "md" && <span className={n >= 5 ? "" : "opacity-80"}>AI-relevans</span>}
-      <span className="font-semibold tabular-nums">
-        {n}
-        <span className="font-normal opacity-70">/5</span>
-      </span>
-      {size === "sm" && <span className="sr-only"> i AI-relevans</span>}
+      {size === "md" && <span>AI-relevans</span>}
+      <ScoreDots score={n} />
+      <span className="font-bold tabular-nums">{n}</span>
+      <span className="sr-only">{size === "md" ? " av 5" : " av 5 i AI-relevans"}</span>
     </span>
   );
 }

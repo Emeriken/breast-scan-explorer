@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils";
 
 const tabBase =
   "relative whitespace-nowrap py-3 text-sm font-medium transition-colors after:absolute after:inset-x-0 after:-bottom-px after:h-[2px] after:bg-transparent";
-const tabActive = "text-foreground after:bg-primary";
+// Aktiv flik och märket är de enda ställena där SÖS-rött används
+const tabActive = "text-foreground after:bg-brand";
 const tabInactive = "text-muted-foreground hover:text-foreground";
 
 const TABS = [
@@ -134,9 +135,10 @@ export function SiteHeader() {
           <div className="flex min-w-0 items-center gap-6">
             <Link
               to="/"
-              className="truncate py-3 text-sm font-semibold tracking-[-0.01em] text-foreground"
+              className="inline-flex min-w-0 items-center gap-2.5 py-3 text-sm font-semibold tracking-[-0.01em] text-foreground"
             >
-              {PRODUCT_NAME}
+              <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-[2px] bg-brand" />
+              <span className="truncate">{PRODUCT_NAME}</span>
             </Link>
             <Tabs pathname={pathname} className="hidden sm:flex" />
           </div>

@@ -71,12 +71,12 @@ function MeshLink({
       className={cn(
         "hit-area transition-colors",
         plain
-          ? "rounded-sm text-foreground/80 underline decoration-border decoration-1 underline-offset-[3px] hover:text-foreground hover:decoration-foreground/60"
+          ? "rounded-sm text-ink-2 underline decoration-input decoration-1 underline-offset-[3px] hover:text-foreground hover:decoration-foreground/60"
           : cn(
-              "inline-flex min-h-7 items-center rounded-full border px-2.5 text-xs",
+              "inline-flex min-h-7 items-center rounded-md border px-2.5 text-[13px]",
               m.major
-                ? "border-primary/40 bg-primary/10 font-semibold text-primary hover:bg-primary/20"
-                : "border-input bg-muted text-muted-foreground hover:bg-accent hover:text-foreground",
+                ? "border-foreground font-semibold text-foreground hover:bg-muted"
+                : "border-input text-ink-2 hover:bg-muted hover:text-foreground",
             ),
       )}
       title={`${m.major ? "Huvudämne enligt NLM. " : ""}Visa artiklar med MeSH-termen ${m.term}`}
