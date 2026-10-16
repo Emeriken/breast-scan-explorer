@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { AI_NOTE, AiTag } from "@/components/Labels";
+import { AI_NOTE } from "@/components/Labels";
 import type { DeepAnalysis as DeepAnalysisData } from "@/lib/articles";
 
 type Fields = NonNullable<DeepAnalysisData>;
@@ -20,24 +20,35 @@ export function hasDeepAnalysis(da: DeepAnalysisData | undefined): da is Fields 
   return !!da && FIELDS.some(([k]) => !!da[k]);
 }
 
-/** Djupanalysen som rutnät, med tydlig AI-märkning. Används på alla sidor. */
-export function DeepAnalysisList({ da, className }: { da: Fields; className?: string }) {
+/**
+ * Djupanalysen som en grå panel med fälten bredvid varandra när det får
+ * plats. Står alltid i AI-delen (under den streckade linjen) och avslutas med
+ * AI-förklaringen. Används på alla sidor.
+ */
+export function DeepAnalysisList({
+  da,
+  id,
+  className,
+}: {
+  da: Fields;
+  id?: string;
+  className?: string;
+}) {
   return (
-    <div className={cn("rounded-md border border-dashed bg-background p-4 text-sm", className)}>
-      <dl className="grid gap-3 sm:grid-cols-2">
+    <div id={id} className={cn("flex flex-col gap-3 rounded-md bg-muted px-4 py-3.5", className)}>
+      <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(17.5rem,100%),1fr))] gap-x-7 gap-y-3">
         {FIELDS.map(([k, label]) =>
           da[k] ? (
             <div key={k}>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <dt className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                 {label}
               </dt>
-              <dd className="mt-1">{da[k]}</dd>
+              <dd className="mt-1 text-sm leading-[22px] text-ink-2">{da[k]}</dd>
             </div>
           ) : null,
         )}
       </dl>
-      <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-        <AiTag static />
+      <p className="text-xs leading-[18px] text-muted-foreground">
         {AI_NOTE} Kontrollera mot originalartikeln.
       </p>
     </div>

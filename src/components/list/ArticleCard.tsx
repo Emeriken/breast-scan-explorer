@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { CategoryTag, PubDateDisplay } from "@/components/ArticleMeta";
@@ -17,9 +17,42 @@ import { authorLine } from "@/lib/regulatory";
 import type { ParsedQuery } from "@/lib/search";
 import { cn } from "@/lib/utils";
 
+/** Liten extern länk i kortets övre rad, t.ex. "PubMed ↗". */
+function SourceLink({
+  href,
+  title,
+  srText,
+  className,
+  children,
+}: {
+  href: string;
+  title?: string;
+  srText?: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      title={title}
+      {...externalLinkProps}
+      className={cn(
+        "hit-area inline-flex items-center gap-1 text-meta font-medium underline-offset-2 hover:underline",
+        className,
+      )}
+    >
+      {children}
+      <ExternalLink aria-hidden className="h-3 w-3 shrink-0 text-muted-foreground" />
+      <span className="sr-only">{srText ? ` ${srText}` : ""} (öppnas i ny flik)</span>
+    </a>
+  );
+}
+
 /**
- * Ett kort i listan. Bara titeln och de uttryckliga länkarna och knapparna
- * är klickbara, så kortet i sig har ingen hover-effekt.
+ * Ett kort i listan. Överst AI-relevans, märken, kategori och källänkar, sedan
+ * titel och källa. AI-texten står under en streckad linje: motiveringen
+ * alltid, djupanalysen när man fäller ut den. Bara titeln och de uttryckliga
+ * länkarna och knapparna är klickbara.
  */
 export function ArticleCard({
   article,
@@ -36,113 +69,116 @@ export function ArticleCard({
   headingLevel?: 2 | 3;
 }) {
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   const da = article.deep_analysis;
+  const deep = hasDeepAnalysis(da);
   const authors = authorLine(article.authors, article.author_count);
   const pmid = article.pmid ?? pmidFromUrl(article.url);
   const Heading = headingLevel === 2 ? "h2" : "h3";
+  const titleClass = "text-foreground underline-offset-2 hover:underline";
 
   return (
-    <article className="rounded-md border border-border bg-card p-4 sm:p-5">
-      <div className="flex flex-col gap-2.5">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <ScoreBadge score={article.relevance_score} />
-            {showNew && <NewBadge />}
-            <NoticeBadge title={article.title} publicationTypes={article.publication_types} />
-            <CategoryTag category={article.category} />
-          </div>
-          <span className="text-meta text-muted-foreground">
-            <PubDateDisplay pubDate={article.pub_date} />
-          </span>
-        </div>
-
-        <Heading className="text-base font-semibold leading-[1.35] tracking-[-0.01em] sm:text-lg">
-          {pmid ? (
-            <Link
-              to="/article/$pmid"
-              params={{ pmid }}
-              search={listContext(listSearch)}
-              className="text-foreground underline-offset-2 hover:underline"
+    <article className="flex flex-col gap-2 rounded-md border border-border bg-card px-4 pb-3.5 pt-4 sm:px-5 sm:pb-4 sm:pt-[18px]">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <ScoreBadge score={article.relevance_score} />
+        {showNew && <NewBadge />}
+        <NoticeBadge title={article.title} publicationTypes={article.publication_types} />
+        <CategoryTag category={article.category} />
+        <span className="ml-auto inline-flex items-center gap-3.5">
+          <SourceLink
+            href={pubmedUrl({ pmid: pmid ?? undefined, url: article.url })}
+            className="text-foreground"
+          >
+            PubMed
+          </SourceLink>
+          {article.doi && (
+            <SourceLink
+              href={`https://doi.org/${article.doi}`}
+              title={`DOI ${article.doi}`}
+              srText={article.doi}
+              className="text-ink-2"
             >
-              <Highlight text={article.title} query={query} />
-            </Link>
-          ) : (
-            <a
-              href={article.url}
-              {...externalLinkProps}
-              className="text-foreground underline-offset-2 hover:underline"
-            >
-              <Highlight text={article.title} query={query} />
-              <ExternalLink
-                aria-hidden
-                className="ml-1 inline h-3.5 w-3.5 align-baseline opacity-60"
-              />
-            </a>
+              DOI
+            </SourceLink>
           )}
-        </Heading>
+        </span>
+      </div>
 
-        <div className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground/80">
+      <Heading className="mt-0.5 text-base font-semibold leading-[22px] tracking-[-0.012em] text-pretty sm:text-lg sm:leading-[26px]">
+        {pmid ? (
+          <Link
+            to="/article/$pmid"
+            params={{ pmid }}
+            search={listContext(listSearch)}
+            className={titleClass}
+          >
+            <Highlight text={article.title} query={query} />
+          </Link>
+        ) : (
+          <a href={article.url} {...externalLinkProps} className={titleClass}>
+            <Highlight text={article.title} query={query} />
+            <ExternalLink
+              aria-hidden
+              className="ml-1 inline h-3.5 w-3.5 align-baseline opacity-60"
+            />
+          </a>
+        )}
+      </Heading>
+
+      <p className="text-meta text-muted-foreground">
+        <span className="whitespace-nowrap">
+          <span className="font-medium text-ink-2">
             <Highlight text={article.journal} query={query} />
           </span>
           <JournalBadge journal={article.journal} />
-          {authors && (
-            <span className="mt-0.5 block line-clamp-1 text-meta">
-              <Highlight text={authors} query={query} />
-            </span>
+        </span>
+        {article.pub_date && (
+          <>
+            <span aria-hidden>{"\u00a0· "}</span>
+            <PubDateDisplay pubDate={article.pub_date} />
+          </>
+        )}
+        {authors && (
+          <>
+            <span aria-hidden>{"\u00a0· "}</span>
+            <Highlight text={authors} query={query} />
+          </>
+        )}
+      </p>
+
+      <MeshTags terms={article.mesh_terms} variant="card" merge />
+
+      <RegulatoryBadges reg={article.regulatory} />
+
+      {(article.why_relevant || deep) && (
+        <div className="mt-1 flex flex-col gap-1.5 border-t border-dashed border-input pt-3">
+          {article.why_relevant && (
+            <p className="max-w-[82ch] text-sm leading-[22px] text-ink-2">
+              <AiTag className="mr-1.5" />
+              <span className="font-semibold text-foreground">Motivering:</span>{" "}
+              <Highlight text={article.why_relevant} query={query} />
+            </p>
+          )}
+          {deep && (
+            <>
+              <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                aria-expanded={open}
+                aria-controls={open ? panelId : undefined}
+                className="hit-area inline-flex min-h-7 items-center gap-1 self-start text-meta font-medium text-ink-2 underline-offset-2 hover:text-foreground hover:underline"
+              >
+                <ChevronDown
+                  aria-hidden
+                  className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")}
+                />
+                {open ? "Dölj djupanalys" : "Visa djupanalys"}
+              </button>
+              {open && <DeepAnalysisList da={da} id={panelId} />}
+            </>
           )}
         </div>
-
-        <MeshTags terms={article.mesh_terms} variant="card" merge />
-
-        <RegulatoryBadges reg={article.regulatory} />
-
-        {article.why_relevant && (
-          <p className="rounded-md border border-border/60 bg-muted/40 p-3 text-sm text-foreground/85">
-            <AiTag className="mr-1.5" />
-            <span className="font-semibold text-foreground">Motivering: </span>
-            <Highlight text={article.why_relevant} query={query} />
-          </p>
-        )}
-
-        {hasDeepAnalysis(da) && (
-          <div>
-            <button
-              type="button"
-              onClick={() => setOpen((v) => !v)}
-              className="hit-area inline-flex min-h-8 items-center gap-1 text-sm font-medium text-foreground/80 hover:text-foreground hover:underline"
-              aria-expanded={open}
-            >
-              <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
-              {open ? "Dölj djupanalys" : "Visa djupanalys"}
-            </button>
-            {open && <DeepAnalysisList da={da} className="mt-2" />}
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta text-muted-foreground">
-          <a
-            href={pubmedUrl({ pmid: pmid ?? undefined, url: article.url })}
-            {...externalLinkProps}
-            className="hit-area inline-flex items-center gap-1 font-medium text-foreground/85 underline-offset-2 hover:text-foreground hover:underline"
-          >
-            PubMed
-            <ExternalLink aria-hidden className="h-3.5 w-3.5 opacity-60" />
-            <span className="sr-only">(öppnas i ny flik)</span>
-          </a>
-          {article.doi && (
-            <a
-              href={`https://doi.org/${article.doi}`}
-              {...externalLinkProps}
-              className="hit-area inline-flex min-w-0 items-center gap-1 underline-offset-2 hover:text-foreground hover:underline"
-            >
-              <span className="truncate">DOI: {article.doi}</span>
-              <ExternalLink aria-hidden className="h-3.5 w-3.5 shrink-0 opacity-60" />
-              <span className="sr-only">(öppnas i ny flik)</span>
-            </a>
-          )}
-        </div>
-      </div>
+      )}
     </article>
   );
 }

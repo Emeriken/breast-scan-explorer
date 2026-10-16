@@ -3,9 +3,9 @@ import { KiJlInfoTooltip } from "@/components/KiJlInfoTooltip";
 import { CheckboxList, MultiSelect } from "@/components/MultiSelect";
 import { RelevanceInfo } from "@/components/Score";
 import { Segmented } from "@/components/Segmented";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -23,6 +23,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_SORT,
   SORT_KEYS,
@@ -30,11 +31,15 @@ import {
   type ArticleSearch,
   type SortKey,
 } from "@/lib/article-search";
+import { formatDay } from "@/lib/articles";
 import { CATEGORY_DESCRIPTIONS } from "@/lib/categories";
 import { cn } from "@/lib/utils";
 import type { FilterChip } from "./filterChips";
 
 type Update = (patch: Partial<ArticleSearch>) => void;
+
+/** Den senaste veckovisa uppdateringen, för filtret "Bara senaste uppdateringen". */
+export type LatestUpdate = { count: number; day: string | null };
 
 const RELEVANCE_OPTIONS = [
   { value: undefined, label: "Alla" },
@@ -110,9 +115,9 @@ function MoreFilters({
           <SlidersHorizontal aria-hidden className="h-4 w-4" />
           Fler filter
           {count > 0 && (
-            <Badge variant="secondary" className="px-1.5">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1.5 text-xs font-bold leading-4 text-background">
               {count}
-            </Badge>
+            </span>
           )}
         </Button>
       </PopoverTrigger>
@@ -161,6 +166,7 @@ function FilterSheet({
   journals,
   resultCount,
   activeCount,
+  latest,
 }: {
   search: ArticleSearch;
   update: Update;
@@ -169,6 +175,7 @@ function FilterSheet({
   journals: string[];
   resultCount: number;
   activeCount: number;
+  latest?: LatestUpdate;
 }) {
   return (
     <Sheet>
@@ -176,7 +183,11 @@ function FilterSheet({
         <Button variant="outline" className="h-11 shrink-0 gap-1.5 sm:hidden">
           <SlidersHorizontal className="h-4 w-4" />
           Filter
-          {activeCount > 0 && <Badge variant="secondary">{activeCount}</Badge>}
+          {activeCount > 0 && (
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1.5 text-xs font-bold leading-4 text-background">
+              {activeCount}
+            </span>
+          )}
         </Button>
       </SheetTrigger>
       <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
@@ -187,6 +198,22 @@ function FilterSheet({
           </SheetDescription>
         </SheetHeader>
         <div className="mt-4 flex flex-col gap-4">
+          {latest && latest.count > 0 && (
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border bg-card px-3 py-2.5">
+              <Label htmlFor="filter-nya" className="flex flex-col gap-0.5 font-normal leading-5">
+                <span className="text-sm font-medium">Bara senaste uppdateringen</span>
+                <span className="text-meta text-muted-foreground">
+                  {latest.count} {latest.count === 1 ? "artikel" : "artiklar"}
+                  {latest.day ? `, tillagda ${formatDay(latest.day)}` : ""}
+                </span>
+              </Label>
+              <Switch
+                id="filter-nya"
+                checked={Boolean(search.nya)}
+                onCheckedChange={(on) => update({ nya: on ? 1 : undefined })}
+              />
+            </div>
+          )}
           <Segmented
             label="AI-relevans"
             info={<RelevanceInfo />}
@@ -263,6 +290,7 @@ export function Toolbar({
   journals,
   resultCount,
   chips,
+  latest,
   className,
 }: {
   search: ArticleSearch;
@@ -274,6 +302,8 @@ export function Toolbar({
   journals: string[];
   resultCount: number;
   chips: FilterChip[];
+  /** Visas som filter i filterarket på mobil (på dator finns knappen ovanför) */
+  latest?: LatestUpdate;
   className?: string;
 }) {
   return (
@@ -333,6 +363,7 @@ export function Toolbar({
           journals={journals}
           resultCount={resultCount}
           activeCount={chips.filter((c) => c.key !== "q").length}
+          latest={latest}
         />
 
         <div className="hidden flex-wrap items-center gap-2 sm:flex">
