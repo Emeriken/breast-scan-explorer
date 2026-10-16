@@ -52,7 +52,7 @@ function BatchHeader({
           />
           Tillagda {batch.key ? formatDay(batch.key) : "okänt datum"}
           {isLatest && (
-            <span className="ml-1 rounded-sm bg-foreground px-1.5 text-xs font-semibold uppercase leading-5 tracking-wider text-background">
+            <span className="ml-1 inline-flex h-5 items-center rounded-sm bg-foreground px-1.5 text-xs font-semibold leading-4 text-background">
               Senaste
             </span>
           )}
@@ -257,7 +257,7 @@ export function ArticleBrowser() {
           {isLoading && (
             <div className="space-y-3" aria-label="Laddar artiklar">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-40 animate-pulse rounded-xl border bg-card" />
+                <div key={i} className="h-40 animate-pulse rounded-md border bg-card" />
               ))}
             </div>
           )}
@@ -265,7 +265,7 @@ export function ArticleBrowser() {
           {error && <ErrorState error={error} onRetry={() => refetch()} />}
 
           {!isLoading && !error && filtered.length === 0 && (
-            <div className="rounded-xl border border-dashed p-6 sm:p-8">
+            <div className="rounded-md border border-dashed border-input p-6 sm:p-8">
               {query ? (
                 <>
                   <p className="font-medium">Inga träffar för "{search.q}".</p>
@@ -286,7 +286,7 @@ export function ArticleBrowser() {
                                 setQueryInput(next);
                                 update({ q: next || undefined });
                               }}
-                              className="hit-area inline-flex min-h-8 items-center gap-1 rounded-full border border-input bg-background px-3 text-xs hover:bg-muted"
+                              className="hit-area inline-flex min-h-8 items-center gap-1 rounded-md border border-input bg-card px-3 text-xs hover:bg-muted"
                             >
                               <X aria-hidden className="h-3 w-3" />
                               {t.label}
@@ -315,7 +315,7 @@ export function ArticleBrowser() {
                           key={c.key}
                           type="button"
                           onClick={c.clear}
-                          className="hit-area inline-flex min-h-8 items-center gap-1 rounded-full border border-input bg-background px-3 text-xs hover:bg-muted"
+                          className="hit-area inline-flex min-h-8 items-center gap-1 rounded-md border border-input bg-card px-3 text-xs hover:bg-muted"
                         >
                           <X aria-hidden className="h-3 w-3" />
                           {c.label}

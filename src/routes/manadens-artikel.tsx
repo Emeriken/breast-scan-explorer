@@ -404,7 +404,7 @@ function ManadensArtikel() {
       <main id="content" tabIndex={-1} className="mx-auto max-w-5xl px-4 py-5 outline-none">
         <section
           aria-label="Välj område och månad"
-          className="rounded-xl border bg-card p-4 shadow-sm sm:p-5"
+          className="rounded-md border bg-card p-4 sm:p-5"
         >
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div className="w-full md:max-w-md">
@@ -439,7 +439,7 @@ function ManadensArtikel() {
           {isLoading && (
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-40 animate-pulse rounded-xl border bg-card" />
+                <div key={i} className="h-40 animate-pulse rounded-md border bg-card" />
               ))}
             </div>
           )}
@@ -447,7 +447,7 @@ function ManadensArtikel() {
           {error && <ErrorState error={error} onRetry={() => refetch()} />}
 
           {!isLoading && !error && list.length === 0 && (
-            <div className="rounded-xl border border-dashed p-8 text-center sm:p-10">
+            <div className="rounded-md border border-dashed border-input p-8 text-center sm:p-10">
               <p className="font-medium">
                 Inga kandidater för {MONTHS_SV[month - 1].toLowerCase()} {year}.
               </p>
@@ -478,7 +478,7 @@ function ManadensArtikel() {
                 <span className="text-sm font-normal text-muted-foreground">({list.length})</span>
               </h2>
               {useFallback && (
-                <div className="mb-4 rounded-lg border border-amber-300/50 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100">
+                <div className="mb-4 rounded-md border border-warn-line bg-warn-bg p-3 text-sm text-warn">
                   Inga artiklar med AI-relevans 4–5 den här månaden. Visar artiklar med AI-relevans
                   3 i stället.
                 </div>
@@ -554,7 +554,7 @@ function CandidateCard({ article, onPrepare }: { article: Article; onPrepare: ()
   const da = article.deep_analysis;
 
   return (
-    <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+    <article className="rounded-md border bg-card p-4 sm:p-5">
       <div className="flex flex-col gap-2.5">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
@@ -699,7 +699,7 @@ function PrepareView({ article, onBack }: { article: Article; onBack: () => void
             </div>
           </div>
 
-          <article className="rounded-xl border bg-card p-5 shadow-sm sm:p-6 print:rounded-none print:border-0 print:p-0 print:shadow-none">
+          <article className="rounded-md border bg-card p-5 sm:p-6 print:rounded-none print:border-0 print:p-0">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <ScoreBadge score={article.relevance_score} />
               <CategoryTag category={article.category} />
@@ -756,7 +756,7 @@ function PrepareView({ article, onBack }: { article: Article; onBack: () => void
             />
           </article>
 
-          <section className="mt-6 rounded-xl border bg-card p-5 shadow-sm sm:p-6 print:mt-8 print:rounded-none print:border-0 print:p-0 print:shadow-none">
+          <section className="mt-6 rounded-md border bg-card p-5 sm:p-6 print:mt-8 print:rounded-none print:border-0 print:p-0">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-lg font-semibold">Checklista för 15 minuter journal club</h2>
               <p className="text-meta text-muted-foreground print:hidden" aria-live="polite">

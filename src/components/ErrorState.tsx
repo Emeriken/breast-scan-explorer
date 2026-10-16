@@ -20,10 +20,7 @@ export function ErrorState({
   return (
     <div
       role="alert"
-      className={cn(
-        "rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center",
-        className,
-      )}
+      className={cn("rounded-md border border-danger-line bg-danger-bg p-6 text-center", className)}
     >
       <p className="font-semibold text-destructive">{title}</p>
       {message && <p className="mt-1 text-sm text-muted-foreground">{message}</p>}

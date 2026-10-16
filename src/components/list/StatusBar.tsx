@@ -87,10 +87,10 @@ export function StatusBar({
                   : "Visa bara artiklar från den senaste uppdateringen"
               }
               className={cn(
-                "hit-area inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+                "hit-area inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors",
                 nyaActive
                   ? "border-foreground bg-foreground text-background"
-                  : "border-border bg-background text-foreground hover:bg-muted",
+                  : "border-input bg-card text-foreground hover:bg-muted",
               )}
             >
               {latestCount} nya i senaste uppdateringen
@@ -117,7 +117,7 @@ export function StatusBar({
       {stale && updatedDay && (
         <div
           role="status"
-          className="mt-3 flex items-start gap-2 rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100"
+          className="mt-3 flex items-start gap-2 rounded-md border border-warn-line bg-warn-bg px-3 py-2 text-sm text-warn"
         >
           <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
           <p>

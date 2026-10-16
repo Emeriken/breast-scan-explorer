@@ -1,6 +1,7 @@
-import { Check, HelpCircle } from "lucide-react";
+import { Ban, Check, HelpCircle, PencilLine } from "lucide-react";
 import type { ReactNode } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { NewBadge } from "@/components/Labels";
 import { RubricList, ScoreBadge } from "@/components/Score";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +14,8 @@ function Row({ sample, children }: { sample: ReactNode; children: ReactNode }) {
   );
 }
 
-const tag = "rounded-sm border px-1.5 text-xs font-semibold uppercase leading-5 tracking-wider";
+const tag =
+  "inline-flex h-[22px] items-center gap-1 rounded-sm border px-[7px] text-xs font-semibold leading-4";
 
 /** Förklaring av allt som syns på ett kort. Fungerar med mus, tangentbord och pekskärm. */
 export function Legend({ className }: { className?: string }) {
@@ -46,7 +48,7 @@ export function Legend({ className }: { className?: string }) {
           </Row>
           <Row
             sample={
-              <span className="rounded-sm border border-border px-1 font-mono text-xs font-semibold uppercase leading-4 tracking-wider text-muted-foreground">
+              <span className="rounded-sm border border-input px-1 font-mono text-xs font-semibold uppercase leading-4 tracking-wider text-muted-foreground">
                 AI
               </span>
             }
@@ -56,7 +58,7 @@ export function Legend({ className }: { className?: string }) {
           </Row>
           <Row
             sample={
-              <span className="rounded-sm border border-border/60 px-1.5 font-mono text-xs leading-5 text-muted-foreground">
+              <span className="rounded-sm border border-border px-1 font-mono text-xs font-semibold leading-4 text-muted-foreground">
                 L3
               </span>
             }
@@ -64,24 +66,16 @@ export function Legend({ className }: { className?: string }) {
             Tidskriftens nivå i Karolinska Institutets tidskriftslista (KI-JL). L3 är högst; listan
             bevakar tidskrifter på L1 till L3.
           </Row>
-          <Row
-            sample={
-              <span className="rounded-sm bg-foreground px-1.5 text-xs font-semibold uppercase leading-5 tracking-wider text-background">
-                Ny
-              </span>
-            }
-          >
-            Kom med den senaste veckovisa uppdateringen.
-          </Row>
+          <Row sample={<NewBadge />}>Kom med den senaste veckovisa uppdateringen.</Row>
           <Row
             sample={
               <>
-                <span
-                  className={cn(tag, "border-destructive/40 bg-destructive/10 text-destructive")}
-                >
+                <span className={cn(tag, "border-danger-line bg-danger-bg text-destructive")}>
+                  <Ban aria-hidden className="h-3 w-3" strokeWidth={2.5} />
                   Indragen
                 </span>
-                <span className={cn(tag, "border-border bg-muted text-muted-foreground")}>
+                <span className={cn(tag, "border-input bg-muted text-ink-2")}>
+                  <PencilLine aria-hidden className="h-3 w-3" strokeWidth={2.5} />
                   Rättelse
                 </span>
               </>
@@ -93,7 +87,7 @@ export function Legend({ className }: { className?: string }) {
           </Row>
           <Row
             sample={
-              <span className="inline-flex items-center gap-0.5 rounded-sm border border-border/80 px-1 font-mono text-xs font-semibold leading-4 tracking-wider text-foreground/80">
+              <span className="inline-flex items-center gap-0.5 rounded-sm border border-border px-1 font-mono text-xs font-semibold leading-4 tracking-wider text-ink-2">
                 <Check aria-hidden className="h-3 w-3" />
                 FDA
               </span>
@@ -104,7 +98,7 @@ export function Legend({ className }: { className?: string }) {
           </Row>
           <Row
             sample={
-              <span className="rounded-sm border border-amber-200/60 bg-amber-50 px-1.5 text-xs font-medium uppercase leading-5 tracking-wider text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-200">
+              <span className="rounded-sm border border-border px-1.5 text-xs font-semibold leading-5 text-muted-foreground">
                 Före tryck
               </span>
             }
@@ -113,8 +107,8 @@ export function Legend({ className }: { className?: string }) {
           </Row>
           <Row
             sample={
-              <span className="rounded-full border border-primary/40 bg-primary/10 px-2 text-xs font-semibold leading-5 text-primary">
-                MeSH
+              <span className="text-meta text-ink-2 underline decoration-input underline-offset-[3px]">
+                Mastectomy
               </span>
             }
           >

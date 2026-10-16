@@ -26,12 +26,12 @@ export function LowRelevanceRows({
   const [open, setOpen] = useState(false);
   if (items.length === 0) return null;
   return (
-    <div className="rounded-lg border border-dashed border-border bg-card/50">
+    <div className="rounded-md border border-border bg-card">
       <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 rounded-lg px-4 py-3 text-left text-sm font-medium text-foreground/80 hover:text-foreground"
+        className="flex w-full items-center justify-between gap-3 rounded-md px-4 py-3 text-left text-sm font-medium text-foreground/80 hover:text-foreground"
       >
         <span>
           {open ? "Dölj" : "Visa"} {items.length} med lägre AI-relevans (1–2)

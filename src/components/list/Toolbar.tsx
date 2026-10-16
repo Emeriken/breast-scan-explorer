@@ -299,7 +299,7 @@ export function Toolbar({
             placeholder="Sök titel, författare, läkemedel, MeSH, PMID"
             aria-label="Sök bland artiklarna"
             aria-describedby="search-help"
-            className="h-11 rounded-md border-border pl-9 pr-11 shadow-inner focus-visible:border-foreground/40 sm:h-9"
+            className="h-11 rounded-md pl-9 pr-11 focus-visible:border-foreground/40 sm:h-9"
           />
           {queryInput ? (
             <button
@@ -365,7 +365,7 @@ export function Toolbar({
               type="button"
               onClick={c.clear}
               aria-label={`Ta bort filtret ${c.label}`}
-              className="hit-area inline-flex h-8 max-w-full items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs hover:bg-muted"
+              className="hit-area inline-flex h-8 max-w-full items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[13px] hover:bg-muted"
             >
               <span className="truncate">{c.label}</span>
               <X aria-hidden className="h-3 w-3 shrink-0" />

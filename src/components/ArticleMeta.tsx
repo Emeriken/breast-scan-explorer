@@ -1,4 +1,3 @@
-import { categoryColor } from "@/lib/categories";
 import { formatPubDate, parsePubDate } from "@/lib/journals";
 
 /** Publiceringsdatum med PubMeds precision, och "Före tryck" för framtida datum. */
@@ -11,7 +10,7 @@ export function PubDateDisplay({ pubDate }: { pubDate?: string }) {
       <span>{formatPubDate(pubDate)}</span>
       {isFuture && (
         <span
-          className="rounded-sm border border-amber-200/60 bg-amber-50 px-1.5 text-xs font-medium uppercase leading-5 tracking-wider text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-200"
+          className="inline-flex h-5 items-center rounded-sm border border-border px-1.5 text-xs font-semibold leading-4 text-muted-foreground"
           title="Publiceringsdatumet ligger i framtiden. Artikeln finns sannolikt redan online (ahead of print)."
         >
           Före tryck
@@ -21,16 +20,10 @@ export function PubDateDisplay({ pubDate }: { pubDate?: string }) {
   );
 }
 
+/**
+ * Kategorin som text. Ingen färgkod: kategorin står alltid utskriven, och sex
+ * färger går inte att skilja säkert åt vid färgblindhet.
+ */
 export function CategoryTag({ category }: { category: string }) {
-  const c = categoryColor(category);
-  return (
-    <span className="inline-flex items-center gap-1.5 text-meta font-medium text-muted-foreground">
-      <span
-        aria-hidden
-        className="inline-block h-2 w-2 rounded-full"
-        style={{ backgroundColor: c.solid }}
-      />
-      {category}
-    </span>
-  );
+  return <span className="text-meta font-medium text-ink-2">{category}</span>;
 }
