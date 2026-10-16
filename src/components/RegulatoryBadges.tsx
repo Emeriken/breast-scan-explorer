@@ -179,12 +179,28 @@ function EmaSection({ products, print }: { products: EmaProduct[]; print?: boole
   );
 }
 
-function SubstanceDetails({ s, print }: { s: RegulatorySubstance; print?: boolean }) {
+function SubstanceDetails({
+  s,
+  print,
+  wide,
+}: {
+  s: RegulatorySubstance;
+  print?: boolean;
+  /** FDA och EMA bredvid varandra när det får plats (artikelsidan) */
+  wide?: boolean;
+}) {
   return (
     <div className="space-y-3 text-sm">
-      <p className="font-semibold">{s.name}</p>
-      {s.fda && <FdaSection fda={s.fda} print={print} />}
-      {s.ema && <EmaSection products={s.ema} print={print} />}
+      <p className={cn("font-semibold", wide && "text-[15px]")}>{s.name}</p>
+      <div
+        className={cn(
+          "grid gap-3",
+          wide && "grid-cols-[repeat(auto-fit,minmax(min(15rem,100%),1fr))] gap-x-7 gap-y-3.5",
+        )}
+      >
+        {s.fda && <FdaSection fda={s.fda} print={print} />}
+        {s.ema && <EmaSection products={s.ema} print={print} />}
+      </div>
     </div>
   );
 }
@@ -269,17 +285,20 @@ export function RegulatorySection({
   if (!reg || reg.substances.length === 0) return null;
   return (
     <section className={className}>
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="text-xs font-semibold uppercase leading-4 tracking-[0.05em] text-muted-foreground">
         Godkännande (FDA/EMA)
       </h2>
-      <div className={cn("mt-2 grid gap-3", reg.substances.length > 1 && "sm:grid-cols-2")}>
+      <div className={cn("mt-3 grid gap-3", reg.substances.length > 1 && "sm:grid-cols-2")}>
         {reg.substances.map((s) => (
-          <div key={s.key} className="rounded-md border border-border p-3 break-inside-avoid">
-            <SubstanceDetails s={s} print={printIndications} />
+          <div
+            key={s.key}
+            className="rounded-md border border-border p-4 break-inside-avoid sm:px-[18px]"
+          >
+            <SubstanceDetails s={s} print={printIndications} wide={reg.substances.length === 1} />
           </div>
         ))}
       </div>
-      <Footnote reg={reg} className="mt-2" />
+      <Footnote reg={reg} className="mt-3" />
     </section>
   );
 }

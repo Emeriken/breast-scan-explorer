@@ -60,6 +60,8 @@ export function ArticleCard({
   listSearch,
   showNew,
   headingLevel = 3,
+  meshMerge = true,
+  actions,
 }: {
   article: Article;
   query: ParsedQuery | null;
@@ -67,6 +69,10 @@ export function ArticleCard({
   listSearch: ArticleSearch;
   showNew?: boolean;
   headingLevel?: 2 | 3;
+  /** MeSH-länkarna läggs till listans filter (annars ersätter de dem) */
+  meshMerge?: boolean;
+  /** Knappar sist på kortet, t.ex. "Förbered presentation" i Journal club */
+  actions?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -146,7 +152,7 @@ export function ArticleCard({
         )}
       </p>
 
-      <MeshTags terms={article.mesh_terms} variant="card" merge />
+      <MeshTags terms={article.mesh_terms} variant="card" merge={meshMerge} />
 
       <RegulatoryBadges reg={article.regulatory} />
 
@@ -179,6 +185,8 @@ export function ArticleCard({
           )}
         </div>
       )}
+
+      {actions && <div className="mt-1.5 flex flex-wrap items-center gap-3">{actions}</div>}
     </article>
   );
 }
