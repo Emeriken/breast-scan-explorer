@@ -546,30 +546,33 @@ function PrepareView({ article, onBack }: { article: Article; onBack: () => void
   const storageKey = `presentation-checklist:${article.url}`;
   const [checked, setChecked] = useState<boolean[]>(() => CHECKLIST_ITEMS.map(() => false));
   const [printIndications, setPrintIndications] = useState(false);
+  // Spara först när den sparade listan för just den här artikeln är inläst,
+  // annars skrivs den över med en tom lista innan den hunnit läsas in.
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    let next = CHECKLIST_ITEMS.map(() => false);
     try {
       const raw = window.localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length === CHECKLIST_ITEMS.length) {
-          setChecked(parsed.map(Boolean));
-        }
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed) && parsed.length === CHECKLIST_ITEMS.length) {
+        next = parsed.map(Boolean);
       }
     } catch {
-      // ignore
+      // Lagring blockerad eller trasig: börja med en tom lista
     }
+    setChecked(next);
+    setLoadedKey(storageKey);
   }, [storageKey]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (loadedKey !== storageKey) return;
     try {
       window.localStorage.setItem(storageKey, JSON.stringify(checked));
     } catch {
-      // ignore
+      // Lagring blockerad: listan gäller bara den här sidvisningen
     }
-  }, [storageKey, checked]);
+  }, [storageKey, checked, loadedKey]);
 
   useEffect(() => {
     document.title = `Förbered: ${article.title.slice(0, 50)} · ${PRODUCT_NAME}`;
