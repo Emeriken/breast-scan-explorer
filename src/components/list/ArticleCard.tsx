@@ -8,7 +8,7 @@ import { JournalBadge } from "@/components/JournalBadge";
 import { AiTag, NewBadge, NoticeBadge } from "@/components/Labels";
 import { MeshTags } from "@/components/MeshTags";
 import { RegulatoryBadges } from "@/components/RegulatoryBadges";
-import { ScoreBadge } from "@/components/Score";
+import { RUBRIC, ScoreBadge, roundScore } from "@/components/Score";
 import { listContext, type ArticleSearch } from "@/lib/article-search";
 import { pubmedUrl, type Article } from "@/lib/articles";
 import { externalLinkProps } from "@/lib/categories";
@@ -82,6 +82,9 @@ export function ArticleCard({
   const pmid = article.pmid ?? pmidFromUrl(article.url);
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const titleClass = "text-foreground underline-offset-2 hover:underline";
+  // Skalans text, ordagrant, för de artiklar som lyfts fram (4–5)
+  const score = roundScore(article.relevance_score);
+  const rubric = score >= 4 ? RUBRIC.find((r) => r.score === score)?.text : undefined;
 
   return (
     <article className="flex flex-col gap-2 rounded-md border border-border bg-card px-4 pb-3.5 pt-4 sm:px-5 sm:pb-4 sm:pt-[18px]">
@@ -109,6 +112,13 @@ export function ArticleCard({
           )}
         </span>
       </div>
+
+      {rubric && (
+        <p className="-mt-0.5 text-meta text-muted-foreground">
+          <span className="sr-only">AI-relevans {score}: </span>
+          {rubric}
+        </p>
+      )}
 
       <Heading className="mt-0.5 text-base font-semibold leading-[22px] tracking-[-0.012em] text-pretty sm:text-lg sm:leading-[26px]">
         {pmid ? (

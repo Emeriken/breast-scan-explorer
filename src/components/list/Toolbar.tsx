@@ -38,7 +38,7 @@ import type { FilterChip } from "./filterChips";
 
 type Update = (patch: Partial<ArticleSearch>) => void;
 
-/** Den senaste veckovisa uppdateringen, för filtret "Bara senaste uppdateringen". */
+/** Den senaste veckovisa uppdateringen, för filtret "Bara veckans nya". */
 export type LatestUpdate = { count: number; day: string | null };
 
 const RELEVANCE_OPTIONS = [
@@ -201,7 +201,7 @@ function FilterSheet({
           {latest && latest.count > 0 && (
             <div className="flex items-center justify-between gap-4 rounded-md border border-border bg-card px-3 py-2.5">
               <Label htmlFor="filter-nya" className="flex flex-col gap-0.5 font-normal leading-5">
-                <span className="text-sm font-medium">Bara senaste uppdateringen</span>
+                <span className="text-sm font-medium">Bara veckans nya</span>
                 <span className="text-meta text-muted-foreground">
                   {latest.count} {latest.count === 1 ? "artikel" : "artiklar"}
                   {latest.day ? `, tillagda ${formatDay(latest.day)}` : ""}

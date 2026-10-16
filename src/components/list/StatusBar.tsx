@@ -1,5 +1,4 @@
-import { AlertTriangle, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertTriangle } from "lucide-react";
 import { dataAge, formatDay } from "@/lib/articles";
 import { cn } from "@/lib/utils";
 
@@ -7,13 +6,10 @@ import { cn } from "@/lib/utils";
 const STALE_AFTER_DAYS = 8;
 
 /**
- * Datans ålder och rytm, knappen Uppdatera med besked om vad som hände, och
- * ett filter för den senaste veckovisa uppdateringen. På mobil visas bara
- * varningen om gammal data: filtret ligger i filterarket och Uppdatera bredvid
- * antalet träffar.
+ * Vad sidan är, ett filter för veckans nya artiklar och en varning om datan
+ * är gammal. Filtret ligger på mobil i filterarket.
  */
 export function StatusBar({
-  articleCount,
   journalCount,
   updated,
   latestBatch,
@@ -21,11 +17,7 @@ export function StatusBar({
   latestTopCount,
   nyaActive,
   onToggleNya,
-  onRefresh,
-  refreshMessage,
-  isFetching,
 }: {
-  articleCount: number;
   journalCount?: number;
   updated?: string;
   latestBatch: string | null;
@@ -33,63 +25,37 @@ export function StatusBar({
   latestTopCount: number;
   nyaActive: boolean;
   onToggleNya: () => void;
-  onRefresh: () => void;
-  /** Beskedet efter Uppdatera, t.ex. "2 nya artiklar" */
-  refreshMessage: string | null;
-  isFetching: boolean;
 }) {
   const { day: updatedDay, ageDays } = dataAge(updated, latestBatch);
   const stale = ageDays !== null && ageDays > STALE_AFTER_DAYS;
 
   return (
-    <div className="sm:pt-6">
-      <div className="hidden flex-wrap items-center justify-between gap-x-4 gap-y-2 sm:flex">
-        <p className="text-meta text-muted-foreground">
-          {articleCount} artiklar
-          {journalCount ? ` från ${journalCount} tidskrifter` : ""}
-          {updatedDay && (
-            <>
-              <span aria-hidden> · </span>
-              Uppdateras varje måndag, senast {formatDay(updatedDay)}
-            </>
-          )}
+    <div className="pt-3 sm:pt-6">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="text-sm leading-[22px] text-ink-2">
+          Nya bröstcancerartiklar{journalCount ? ` från ${journalCount} tidskrifter` : ""}, med
+          högst AI-bedömd relevans först. Ny lista varje måndag.
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          {latestCount > 0 && (
-            <button
-              type="button"
-              aria-pressed={nyaActive}
-              onClick={onToggleNya}
-              title={
-                latestTopCount > 0
-                  ? `${latestTopCount} av dem har AI-relevans 4–5`
-                  : "Visa bara artiklar från den senaste uppdateringen"
-              }
-              className={cn(
-                "hit-area inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors",
-                nyaActive
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-input bg-card text-foreground hover:bg-muted",
-              )}
-            >
-              {latestCount} nya i senaste uppdateringen
-            </button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRefresh}
-            disabled={isFetching}
-            title="Hämta senaste datan"
-            className="hit-area"
+        {latestCount > 0 && (
+          <button
+            type="button"
+            aria-pressed={nyaActive}
+            onClick={onToggleNya}
+            title={
+              latestTopCount > 0
+                ? `${latestTopCount} av dem har AI-relevans 4–5`
+                : "Visa bara artiklarna från den senaste veckans lista"
+            }
+            className={cn(
+              "hit-area hidden h-8 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors sm:inline-flex",
+              nyaActive
+                ? "border-foreground bg-foreground text-background"
+                : "border-input bg-card text-foreground hover:bg-muted",
+            )}
           >
-            <RefreshCw aria-hidden className={cn("h-4 w-4", isFetching && "animate-spin")} />
-            {isFetching ? "Hämtar…" : "Uppdatera"}
-          </Button>
-          <span aria-live="polite" className="text-meta font-medium text-foreground">
-            {refreshMessage}
-          </span>
-        </div>
+            Bara veckans nya ({latestCount})
+          </button>
+        )}
       </div>
 
       {stale && updatedDay && (
