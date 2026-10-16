@@ -7,7 +7,7 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Presentation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AiSections, ArticleHeading, ArticleLinks, PubMedSection } from "@/components/ArticleParts";
 import { ErrorState } from "@/components/ErrorState";
@@ -37,6 +37,13 @@ export const Route = createFileRoute("/article/$pmid")({
 });
 
 const pmidOf = (a: Article) => a.pmid ?? pmidFromUrl(a.url);
+
+/** Journal clubens område för kategorin, så att förberedelsen öppnas i rätt område. */
+const TREATMENT_OF: Record<string, "cytotoxisk" | "endokrin" | "stralbehandling" | undefined> = {
+  "Cytotoxisk behandling": "cytotoxisk",
+  "Endokrin behandling": "endokrin",
+  Strålbehandling: "stralbehandling",
+};
 
 function Pager({
   prev,
@@ -202,7 +209,20 @@ function ArticleDetail() {
           {article && (
             <article className="flex flex-col rounded-md border border-border bg-card px-5 pb-7 pt-6 sm:px-8 sm:pb-8 sm:pt-7">
               <ArticleHeading article={article} />
-              <ArticleLinks article={article} className="mt-[18px]" />
+              <div className="mt-[18px] flex flex-wrap gap-2">
+                <ArticleLinks article={article} />
+                {/^\d+$/.test(pmid) && (
+                  <Button asChild variant="outline" className="hit-area">
+                    <Link
+                      to="/manadens-artikel"
+                      search={{ prepare: Number(pmid), treatment: TREATMENT_OF[article.category] }}
+                    >
+                      <Presentation aria-hidden className="h-4 w-4" />
+                      Förbered för journal club
+                    </Link>
+                  </Button>
+                )}
+              </div>
               <AiSections article={article} />
               <RegulatorySection
                 reg={article.regulatory}
