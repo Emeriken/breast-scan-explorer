@@ -32,9 +32,9 @@ export function StatusBar({
   return (
     <div className="pt-3 sm:pt-6">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <p className="text-sm leading-[22px] text-ink-2">
-          Nya bröstcancerartiklar{journalCount ? ` från ${journalCount} tidskrifter` : ""}, med
-          högst AI-bedömd relevans först. Ny lista varje måndag.
+        <p className="text-sm leading-5.5 text-ink-2">
+          Nya bröstcancerartiklar{journalCount ? ` från ${journalCount} tidskrifter` : ""}, bedömda
+          av AI för relevans. Ny lista varje måndag.
         </p>
         {latestCount > 0 && (
           <button

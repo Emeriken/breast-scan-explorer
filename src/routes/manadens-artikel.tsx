@@ -193,7 +193,7 @@ function MonthStepper({
         <PopoverTrigger asChild>
           <Button
             variant="outline"
-            className="h-9 min-w-0 flex-1 justify-between gap-2 px-3 text-[13px] font-normal sm:flex-none"
+            className="h-9 min-w-0 flex-1 justify-between gap-2 px-3 text-meta font-normal sm:flex-none"
             aria-label={`Publiceringsmånad: ${MONTHS_SV[month - 1]} ${year}. Välj månad`}
           >
             <span className="flex min-w-0 items-center gap-2">
@@ -409,8 +409,8 @@ function ManadensArtikel() {
     <div className="min-h-screen bg-background">
       <main id="content" tabIndex={-1} className="mx-auto max-w-5xl px-4 pb-8 outline-none">
         <div className="flex flex-col gap-1 pb-4 pt-6 sm:pt-7">
-          <h1 className="text-2xl font-semibold leading-[30px] tracking-[-0.02em]">Journal club</h1>
-          <p className="text-sm leading-[22px] text-muted-foreground">
+          <h1 className="text-2xl font-semibold leading-7.5 tracking-[-0.02em]">Journal club</h1>
+          <p className="text-sm leading-5.5 text-muted-foreground">
             Månadens artikel: presentationskandidater för 15 minuter.
           </p>
         </div>
@@ -478,7 +478,7 @@ function ManadensArtikel() {
           {!isLoading && !error && list.length > 0 && (
             <>
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h2 className="text-[17px] font-semibold leading-6 tracking-[-0.01em]">
+                <h2 className="text-heading font-semibold tracking-[-0.01em]">
                   {useFallback ? "AI-relevans 3" : "AI-relevans 4–5"}{" "}
                   <span className="text-sm font-normal text-muted-foreground">
                     {treatmentDef.label}, {monthLabel}
@@ -503,10 +503,7 @@ function ManadensArtikel() {
           <section className="mt-10" aria-labelledby="andra-omraden">
             <div className="mb-3">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h2
-                  id="andra-omraden"
-                  className="text-[17px] font-semibold leading-6 tracking-[-0.01em]"
-                >
+                <h2 id="andra-omraden" className="text-heading font-semibold tracking-[-0.01em]">
                   AI-relevans 4–5 i andra områden
                 </h2>
                 <p className="text-meta text-muted-foreground">
@@ -523,7 +520,7 @@ function ManadensArtikel() {
         )}
 
         {!isLoading && !error && (
-          <p className="mt-10 border-t border-border pt-6 text-sm leading-[22px] text-muted-foreground">
+          <p className="mt-10 border-t border-border pt-6 text-sm leading-5.5 text-muted-foreground">
             Vill du presentera en annan artikel, till exempel en med AI-relevans 3? Öppna den under{" "}
             <Link
               to="/"
@@ -644,7 +641,7 @@ function PrepareView({
 
           <article className="flex flex-col rounded-md border border-border bg-card px-5 pb-7 pt-6 sm:px-8 sm:pb-8 sm:pt-7 print:rounded-none print:border-0 print:p-0">
             <ArticleHeading article={article} doiInline />
-            <ArticleLinks article={article} className="mt-[18px] print:hidden" />
+            <ArticleLinks article={article} className="mt-4.5 print:hidden" />
             <AiSections article={article} />
             <RegulatorySection
               reg={article.regulatory}
@@ -657,7 +654,7 @@ function PrepareView({
 
           <section className="mt-4 rounded-md border border-border bg-card px-5 py-6 sm:px-8 print:mt-8 print:rounded-none print:border-0 print:p-0">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-[17px] font-semibold leading-6 tracking-[-0.01em]">
+              <h2 className="text-heading font-semibold tracking-[-0.01em]">
                 Checklista för 15 minuter journal club
               </h2>
               <p className="text-meta text-muted-foreground print:hidden" aria-live="polite">

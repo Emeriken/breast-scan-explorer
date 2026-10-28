@@ -53,7 +53,7 @@ export function ArticleRow({
   const pmid = a.pmid ?? pmidFromUrl(a.url);
   const titleClass = cn(
     "text-foreground underline-offset-2 hover:underline",
-    low ? "text-sm font-medium leading-5" : "text-[15px] font-semibold leading-[22px]",
+    low ? "text-sm font-medium leading-5" : "text-reading font-semibold leading-5.5",
   );
   return (
     <li className={cn(ROW_GRID, "items-start border-t border-border", low ? "py-2.5" : "py-3")}>
@@ -102,7 +102,7 @@ export function ArticleRow({
         {...externalLinkProps}
         className={cn(
           "hit-area hidden items-center gap-1 justify-self-end text-meta font-medium text-foreground underline-offset-2 hover:underline sm:inline-flex",
-          low ? "leading-5" : "leading-[22px]",
+          low ? "leading-5" : "leading-5.5",
         )}
       >
         PubMed

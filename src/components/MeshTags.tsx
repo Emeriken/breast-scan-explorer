@@ -73,7 +73,7 @@ function MeshLink({
         plain
           ? "rounded-sm text-ink-2 underline decoration-input decoration-1 underline-offset-[3px] hover:text-foreground hover:decoration-foreground/60"
           : cn(
-              "inline-flex min-h-7 items-center rounded-md border px-2.5 text-[13px]",
+              "inline-flex min-h-7 items-center rounded-md border px-2.5 text-meta",
               m.major
                 ? "border-foreground font-semibold text-foreground hover:bg-muted"
                 : "border-input text-ink-2 hover:bg-muted hover:text-foreground",

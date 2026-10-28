@@ -46,6 +46,22 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
+  /*
+   * Typskala utöver Tailwinds egen (text-xs 12, text-sm 14, text-base 16,
+   * text-lg 18, text-2xl 24). text-meta (13 px) är en egen utility längre ner.
+   * Nya namn måste också läggas till i cn() (src/lib/utils.ts).
+   */
+  --text-reading: 0.9375rem; /* 15 px: löptext på artikelsidan, rader i listan */
+  --text-reading--line-height: 1.5rem;
+  --text-heading: 1.0625rem; /* 17 px: rubriker för avsnitt och veckor */
+  --text-heading--line-height: 1.5rem;
+  --text-title: 1.375rem; /* 22 px: artikelns rubrik på mobil */
+  --text-title--line-height: 1.875rem;
+  --text-title-lg: 1.625rem; /* 26 px: artikelns rubrik på dator */
+  --text-title-lg--line-height: 2.125rem;
+  --text-kpi: 1.75rem; /* 28 px: nyckeltal i statistiken */
+  --text-kpi--line-height: 2.25rem;
+  --default-transition-duration: 200ms;
   /* Visuell profil (se :root nedan) */
   --color-ink-2: var(--ink-2);
   --color-line-strong: var(--input);
@@ -248,5 +264,17 @@
       height: max(100%, 44px);
       transform: translate(-50%, -50%);
     }
+  }
+}
+
+/* Respektera önskemål om mindre rörelse: inga animationer eller övergångar */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

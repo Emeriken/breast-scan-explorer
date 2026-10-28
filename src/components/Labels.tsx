@@ -90,7 +90,7 @@ export function NoticeBadge({
     <span
       title={why}
       className={cn(
-        "inline-flex h-[22px] shrink-0 items-center gap-1 rounded-sm border px-[7px] text-xs font-semibold leading-4",
+        "inline-flex h-5.5 shrink-0 items-center gap-1 rounded-sm border px-1.75 text-xs font-semibold leading-4",
         NOTICE_TONE[n.kind],
         className,
       )}

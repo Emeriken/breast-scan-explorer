@@ -36,7 +36,7 @@ export function ViewToggle({
             title={value === "kort" ? "Visa som kort" : "Visa som lista"}
             onClick={() => onChange(value)}
             className={cn(
-              "hit-area inline-flex h-full w-9 items-center justify-center gap-1.5 rounded-sm text-[13px] transition-colors sm:w-auto sm:px-2.5",
+              "hit-area inline-flex h-full w-9 items-center justify-center gap-1.5 rounded-sm text-meta transition-colors sm:w-auto sm:px-2.5",
               active
                 ? "bg-muted font-semibold text-foreground"
                 : "font-medium text-muted-foreground hover:text-foreground",
