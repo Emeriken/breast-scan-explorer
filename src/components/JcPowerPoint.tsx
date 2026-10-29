@@ -90,10 +90,8 @@ export function JcPowerPoint({ article, area }: { article: Article; area: string
 
   return (
     <section className="mt-4 rounded-md border border-border bg-card px-5 py-6 sm:px-8 print:hidden">
-      <h2 className="text-[17px] font-semibold leading-6 tracking-[-0.01em]">
-        PowerPoint för journal club
-      </h2>
-      <p className="mt-1 max-w-[70ch] text-sm leading-[22px] text-muted-foreground">
+      <h2 className="text-heading font-semibold tracking-[-0.01em]">PowerPoint för journal club</h2>
+      <p className="mt-1 max-w-[70ch] text-sm leading-5.5 text-muted-foreground">
         Åtta bilder på SÖS mall med artikelns uppgifter från PubMed och rutor att fylla i. Appen
         skriver inga resultat eller slutsatser. AI-texterna och abstractet läggs i talarens
         anteckningar, märkta med var de kommer ifrån.

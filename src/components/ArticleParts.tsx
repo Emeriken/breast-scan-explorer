@@ -38,10 +38,10 @@ export function ArticleHeading({
         <NoticeBadge title={article.title} publicationTypes={article.publication_types} />
         <CategoryTag category={article.category} />
       </div>
-      <h1 className="mt-3.5 text-[22px] font-semibold leading-[30px] tracking-[-0.02em] text-pretty sm:text-[26px] sm:leading-[34px]">
+      <h1 className="mt-3.5 text-title font-semibold tracking-[-0.02em] text-pretty sm:text-title-lg">
         {article.title}
       </h1>
-      <p className="mt-2.5 text-sm leading-[22px] text-muted-foreground">
+      <p className="mt-2.5 text-sm leading-5.5 text-muted-foreground">
         <span className="whitespace-nowrap">
           <span className="font-medium text-ink-2">{article.journal}</span>
           <JournalBadge journal={article.journal} />
@@ -84,7 +84,7 @@ export function ArticleLinks({ article, className }: { article: Article; classNa
         <Button asChild variant="outline" className="hit-area max-w-full">
           <a href={`https://doi.org/${article.doi}`} {...externalLinkProps}>
             DOI
-            <span className="truncate font-mono text-[13px] font-normal text-ink-2">
+            <span className="truncate font-mono text-meta font-normal text-ink-2">
               {article.doi}
             </span>
             <ExternalLink aria-hidden className="h-3.5 w-3.5 text-muted-foreground" />
@@ -115,7 +115,7 @@ export function AiSections({ article, className }: { article: Article; className
             <AiTag />
             Motivering
           </h2>
-          <p className="text-[15px] leading-6 text-ink-2">{article.why_relevant}</p>
+          <p className="text-reading text-ink-2">{article.why_relevant}</p>
         </section>
       )}
       {deep && (
@@ -124,7 +124,7 @@ export function AiSections({ article, className }: { article: Article; className
             <AiTag />
             Djupanalys
           </h2>
-          <DeepAnalysisList da={da} className="sm:px-[18px] sm:py-4" />
+          <DeepAnalysisList da={da} className="sm:px-4.5 sm:py-4" />
         </section>
       )}
     </div>
@@ -147,17 +147,17 @@ export function PubMedSection({ article, className }: { article: Article; classN
       <h2 id={`${id}-pm`} className={SECTION_HEADING}>
         Från PubMed
       </h2>
-      <dl className="mt-4 grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm leading-[22px] sm:grid-cols-[8.75rem_minmax(0,1fr)]">
+      <dl className="mt-4 grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm leading-5.5 sm:grid-cols-[8.75rem_minmax(0,1fr)]">
         {pmid && (
           <>
             <dt className="text-muted-foreground">PMID</dt>
-            <dd className="font-mono text-[13px] text-ink-2">{pmid}</dd>
+            <dd className="font-mono text-meta text-ink-2">{pmid}</dd>
           </>
         )}
         {article.doi && (
           <>
             <dt className="text-muted-foreground">DOI</dt>
-            <dd className="break-all font-mono text-[13px] text-ink-2">{article.doi}</dd>
+            <dd className="break-all font-mono text-meta text-ink-2">{article.doi}</dd>
           </>
         )}
         {article.pub_date && (
@@ -179,7 +179,7 @@ export function PubMedSection({ article, className }: { article: Article; classN
       </dl>
       {hasMesh && (
         <div className="mt-5 flex flex-col gap-2">
-          <h3 className="text-sm font-normal leading-[22px] text-muted-foreground">
+          <h3 className="text-sm font-normal leading-5.5 text-muted-foreground">
             MeSH-termer <span className="text-meta">(huvudämnen enligt NLM först)</span>
           </h3>
           <MeshTags terms={article.mesh_terms} />

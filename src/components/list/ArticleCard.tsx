@@ -87,7 +87,7 @@ export function ArticleCard({
   const rubric = score >= 4 ? RUBRIC.find((r) => r.score === score)?.text : undefined;
 
   return (
-    <article className="flex flex-col gap-2 rounded-md border border-border bg-card px-4 pb-3.5 pt-4 sm:px-5 sm:pb-4 sm:pt-[18px]">
+    <article className="flex flex-col gap-2 rounded-md border border-border bg-card px-4 pb-3.5 pt-4 sm:px-5 sm:pb-4 sm:pt-4.5">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <ScoreBadge score={article.relevance_score} />
         {showNew && <NewBadge />}
@@ -120,7 +120,7 @@ export function ArticleCard({
         </p>
       )}
 
-      <Heading className="mt-0.5 text-base font-semibold leading-[22px] tracking-[-0.012em] text-pretty sm:text-lg sm:leading-[26px]">
+      <Heading className="mt-0.5 text-base font-semibold leading-5.5 tracking-[-0.012em] text-pretty sm:text-lg sm:leading-6.5">
         {pmid ? (
           <Link
             to="/article/$pmid"
@@ -169,7 +169,7 @@ export function ArticleCard({
       {(article.why_relevant || deep) && (
         <div className="mt-1 flex flex-col gap-1.5 border-t border-dashed border-input pt-3">
           {article.why_relevant && (
-            <p className="max-w-[82ch] text-sm leading-[22px] text-ink-2">
+            <p className="max-w-[82ch] text-sm leading-5.5 text-ink-2">
               <AiTag className="mr-1.5" />
               <span className="font-semibold text-foreground">Motivering:</span>{" "}
               <Highlight text={article.why_relevant} query={query} />

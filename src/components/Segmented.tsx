@@ -54,7 +54,7 @@ export function Segmented<T extends string | number | undefined>({
             title={o.title}
             onClick={() => onChange(o.value)}
             className={cn(
-              "hit-area h-full whitespace-nowrap rounded-sm px-3 text-[13px] font-medium transition-colors",
+              "hit-area h-full whitespace-nowrap rounded-sm px-3 text-meta font-medium transition-colors",
               fill && "flex-1 px-2",
               active
                 ? "bg-foreground text-background"

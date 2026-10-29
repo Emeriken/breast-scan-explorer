@@ -7,7 +7,7 @@ export function JournalBadge({ journal }: { journal: string }) {
   return (
     <span
       title={`KI-JL nivå ${lvl} (Karolinska Institutets tidskriftslista, L3 högst)`}
-      className="ml-1.5 inline-flex h-[18px] items-center rounded-sm border border-border px-1 align-[1px] font-mono text-xs font-semibold leading-4 text-muted-foreground"
+      className="ml-1.5 inline-flex h-4.5 items-center rounded-sm border border-border px-1 align-[1px] font-mono text-xs font-semibold leading-4 text-muted-foreground"
     >
       <span aria-hidden>L{lvl}</span>
       <span className="sr-only">KI-JL nivå {lvl}</span>

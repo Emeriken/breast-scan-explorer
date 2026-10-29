@@ -396,7 +396,7 @@ export function Toolbar({
               type="button"
               onClick={c.clear}
               aria-label={`Ta bort filtret ${c.label}`}
-              className="hit-area inline-flex h-8 max-w-full items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[13px] hover:bg-muted"
+              className="hit-area inline-flex h-8 max-w-full items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-meta hover:bg-muted"
             >
               <span className="truncate">{c.label}</span>
               <X aria-hidden className="h-3 w-3 shrink-0" />

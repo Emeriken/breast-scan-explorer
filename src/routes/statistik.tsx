@@ -236,8 +236,8 @@ function StatistikPage() {
     <div className="min-h-screen bg-background">
       <main id="content" tabIndex={-1} className="mx-auto max-w-5xl px-4 pb-8 outline-none">
         <div className="flex flex-col gap-1 pb-5 pt-6 sm:pt-7">
-          <h1 className="text-2xl font-semibold leading-[30px] tracking-[-0.02em]">Statistik</h1>
-          <p className="text-sm leading-[22px] text-muted-foreground">
+          <h1 className="text-2xl font-semibold leading-7.5 tracking-[-0.02em]">Statistik</h1>
+          <p className="text-sm leading-5.5 text-muted-foreground">
             {data && articles.length > 0 ? (
               <>
                 {articles.length} AI-bedömda artiklar från {journalsTracked} tidskrifter
@@ -533,10 +533,8 @@ function KpiLink({
       className="group relative flex flex-col gap-0.5 rounded-md border border-border bg-card px-4 pb-4 pt-3.5 transition-colors hover:border-input hover:bg-muted/50"
     >
       <span className="pr-5 text-meta text-muted-foreground">{label}</span>
-      <span className="text-[28px] font-semibold leading-9 tracking-[-0.02em] tabular-nums">
-        {value}
-      </span>
-      {sub && <span className="text-xs leading-[18px] text-muted-foreground">{sub}</span>}
+      <span className="text-kpi font-semibold tracking-[-0.02em] tabular-nums">{value}</span>
+      {sub && <span className="text-xs leading-4.5 text-muted-foreground">{sub}</span>}
       <ArrowUpRight
         aria-hidden
         className="absolute right-3 top-3.5 h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground"
@@ -558,10 +556,10 @@ function ChartCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-md border border-border bg-card px-5 pb-5 pt-[18px]">
+    <section className="rounded-md border border-border bg-card px-5 pb-5 pt-4.5">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-[15px] font-semibold leading-[22px]">{title}</h2>
-        {note && <span className="text-xs leading-[18px] text-muted-foreground">{note}</span>}
+        <h2 className="text-reading font-semibold leading-5.5">{title}</h2>
+        {note && <span className="text-xs leading-4.5 text-muted-foreground">{note}</span>}
       </div>
       {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
       <div className="mt-3.5">{children}</div>

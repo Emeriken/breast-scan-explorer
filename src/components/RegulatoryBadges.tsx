@@ -191,7 +191,7 @@ function SubstanceDetails({
 }) {
   return (
     <div className="space-y-3 text-sm">
-      <p className={cn("font-semibold", wide && "text-[15px]")}>{s.name}</p>
+      <p className={cn("font-semibold", wide && "text-reading")}>{s.name}</p>
       <div
         className={cn(
           "grid gap-3",
@@ -292,7 +292,7 @@ export function RegulatorySection({
         {reg.substances.map((s) => (
           <div
             key={s.key}
-            className="rounded-md border border-border p-4 break-inside-avoid sm:px-[18px]"
+            className="rounded-md border border-border p-4 break-inside-avoid sm:px-4.5"
           >
             <SubstanceDetails s={s} print={printIndications} wide={reg.substances.length === 1} />
           </div>

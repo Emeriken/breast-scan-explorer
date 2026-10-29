@@ -43,12 +43,12 @@ export function DeepAnalysisList({
               <dt className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                 {label}
               </dt>
-              <dd className="mt-1 text-sm leading-[22px] text-ink-2">{da[k]}</dd>
+              <dd className="mt-1 text-sm leading-5.5 text-ink-2">{da[k]}</dd>
             </div>
           ) : null,
         )}
       </dl>
-      <p className="text-xs leading-[18px] text-muted-foreground">
+      <p className="text-xs leading-4.5 text-muted-foreground">
         {AI_NOTE} Kontrollera mot originalartikeln.
       </p>
     </div>

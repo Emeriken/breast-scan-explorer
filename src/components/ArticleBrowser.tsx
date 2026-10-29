@@ -63,7 +63,7 @@ function BatchHeader({
   const day = batch.key ? formatDay(batch.key) : null;
   return (
     <div className="mb-3 flex flex-col gap-0.5 border-b border-border pb-2.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-4 sm:gap-y-1">
-      <h2 className="text-[17px] font-semibold leading-6 tracking-[-0.01em]">
+      <h2 className="text-heading font-semibold tracking-[-0.01em]">
         <button
           type="button"
           aria-expanded={!collapsed}

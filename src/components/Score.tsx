@@ -73,7 +73,7 @@ export function ScoreBadge({
   const badge = (
     <span
       className={cn(
-        "inline-flex h-[22px] shrink-0 items-center gap-[7px] whitespace-nowrap rounded-sm border px-[7px] text-xs font-medium leading-4",
+        "inline-flex h-5.5 shrink-0 items-center gap-1.75 whitespace-nowrap rounded-sm border px-1.75 text-xs font-medium leading-4",
         // Skriv ut fyllnad och prickar som på skärmen, annars blir 5 vit text på vitt
         "[-webkit-print-color-adjust:exact] [print-color-adjust:exact]",
         TONE[n].box,

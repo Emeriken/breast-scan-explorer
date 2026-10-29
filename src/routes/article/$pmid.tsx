@@ -209,7 +209,7 @@ function ArticleDetail() {
           {article && (
             <article className="flex flex-col rounded-md border border-border bg-card px-5 pb-7 pt-6 sm:px-8 sm:pb-8 sm:pt-7">
               <ArticleHeading article={article} />
-              <div className="mt-[18px] flex flex-wrap gap-2">
+              <div className="mt-4.5 flex flex-wrap gap-2">
                 <ArticleLinks article={article} />
                 {/^\d+$/.test(pmid) && (
                   <Button asChild variant="outline" className="hit-area">
