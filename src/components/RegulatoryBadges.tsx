@@ -3,16 +3,18 @@ import type { ReactNode } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { externalLinkProps } from "@/lib/categories";
 import { cn } from "@/lib/utils";
+import { emaBreastState, fdaBreastState } from "@/lib/regulatory";
 import type {
   ArticleRegulatory,
   BreastMention,
+  BreastState,
   EmaProduct,
   FdaStatus,
   RegulatorySubstance,
 } from "@/lib/regulatory";
 
 /**
- * FDA- och EMA-status för substanser i artiklar med 4–5 poäng. Uppgifterna
+ * FDA- och EMA-status för substanser som nämns i artikelns titel. Uppgifterna
  * hämtas av pipelinen direkt från Drugs@FDA och EMA (utan AI) och visas bara
  * när en träff finns. Se src/lib/regulatory.ts.
  */
@@ -38,19 +40,56 @@ function statusText(s: RegulatorySubstance): string {
       : s.fda
         ? "godkänd av FDA"
         : "centralt godkänd i EU (EMA)";
-  const breast = [s.fda?.breast && "FDA", s.emaBreast && "EMA"].filter(Boolean);
-  return breast.length
-    ? `${base}, indikationstexten hos ${breast.join(" och ")} nämner bröstcancer`
-    : base;
+  const parts: string[] = [];
+  for (const [label, has, state] of [
+    ["FDA", Boolean(s.fda), fdaBreastState(s)],
+    ["EMA", Boolean(s.ema), emaBreastState(s)],
+  ] as const) {
+    if (!has) continue;
+    if (state === "breast") parts.push(`indikationstexten hos ${label} nämner bröstcancer`);
+    if (state === "absent") parts.push(`indikationstexten hos ${label} nämner inte bröstcancer`);
+  }
+  return [base, ...parts].join(", ");
 }
 
-function SourceTag({ label, breast }: { label: "FDA" | "EMA"; breast?: boolean }) {
+const TAG_STYLE: Record<BreastState, string> = {
+  breast: "border-ok-line bg-ok-bg text-ok",
+  absent: "border-dashed border-line-strong text-muted-foreground",
+  unknown: "border-border text-ink-2",
+};
+
+function SourceTag({ label, state }: { label: "FDA" | "EMA"; state: BreastState }) {
   return (
-    <span className="inline-flex items-center gap-0.5 rounded-sm border border-border px-1 font-mono text-xs font-semibold leading-4 tracking-wider text-ink-2">
+    <span
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded-sm border px-1 font-mono text-xs font-semibold leading-4 tracking-wider",
+        TAG_STYLE[state],
+      )}
+    >
       <Check aria-hidden className="h-2.5 w-2.5" strokeWidth={3} />
       {label}
-      {breast && <span className="font-sans font-medium tracking-normal"> bröst</span>}
+      {state === "breast" && <span className="font-sans font-medium tracking-normal"> bröst</span>}
+      {state === "absent" && (
+        <span className="font-sans font-normal tracking-normal"> ej bröst</span>
+      )}
     </span>
+  );
+}
+
+/** Rad i detaljerna när bröstcancer inte nämns eller inte kunde kontrolleras. */
+function BreastNote({ state, source }: { state: BreastState; source: string }) {
+  if (state === "breast") return null;
+  return (
+    <p
+      className={cn(
+        "mt-2 rounded-sm border px-2 py-1 text-xs leading-relaxed text-muted-foreground",
+        state === "absent" ? "border-dashed border-line-strong" : "border-border",
+      )}
+    >
+      {state === "absent"
+        ? `Ej bröst: ${source} nämner inte bröstcancer.`
+        : `Okänt: ingen indikationstext från ${source} kunde läsas.`}
+    </p>
   );
 }
 
@@ -183,6 +222,10 @@ function FdaSection({ fda, print }: { fda: FdaStatus; print?: boolean }) {
           linkText="Etiketten (DailyMed)"
         />
       )}
+      <BreastNote
+        state={fda.breast ? "breast" : fda.breastAbsent ? "absent" : "unknown"}
+        source="FDA-etiketterna"
+      />
       {label?.indication && (
         <Indication
           heading={`Indikation enligt etiketten${labelBrands}${labelDate}`}
@@ -200,10 +243,12 @@ function FdaSection({ fda, print }: { fda: FdaStatus; print?: boolean }) {
 function EmaSection({
   products,
   breast,
+  breastState,
   print,
 }: {
   products: EmaProduct[];
   breast?: BreastMention;
+  breastState: BreastState;
   print?: boolean;
 }) {
   return (
@@ -238,6 +283,7 @@ function EmaSection({
         </div>
       ))}
       {breast && <BreastQuote breast={breast} source="EMA:s indikationstext" linkText="EMA" />}
+      <BreastNote state={breastState} source="EMA:s indikationstexter" />
     </section>
   );
 }
@@ -262,7 +308,14 @@ function SubstanceDetails({
         )}
       >
         {s.fda && <FdaSection fda={s.fda} print={print} />}
-        {s.ema && <EmaSection products={s.ema} breast={s.emaBreast} print={print} />}
+        {s.ema && (
+          <EmaSection
+            products={s.ema}
+            breast={s.emaBreast}
+            breastState={emaBreastState(s)}
+            print={print}
+          />
+        )}
       </div>
     </div>
   );
@@ -277,9 +330,10 @@ function Footnote({ reg, className }: { reg: ArticleRegulatory; className?: stri
         Saknas en uppgift betyder det inte att läkemedlet är ogodkänt.
       </p>
       <p>
-        ”Bröst” betyder att ordet breast står i den officiella indikationstexten. Meningen visas
-        ordagrant. Den säger inte att godkännandet gäller studiens population. Saknas markeringen
-        kan texten saknas eller inte nämna bröstcancer.
+        Grön ”bröst”: ordet breast står i den officiella indikationstexten. Meningen visas
+        ordagrant. Den säger inte att godkännandet gäller studiens population. Streckad ”ej bröst”:
+        indikationstexten finns men nämner inte bröstcancer. Utan markering: ingen indikationstext
+        kunde läsas.
       </p>
       <p>
         Hämtat direkt från Drugs@FDA och EMA:s lista över centralt godkända läkemedel, utan AI
@@ -301,8 +355,8 @@ function SubstanceChip({ s, reg }: { s: RegulatorySubstance; reg: ArticleRegulat
           className="hit-area inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2 py-0.5 text-xs transition-colors hover:border-input hover:bg-muted sm:min-h-7"
         >
           <span className="font-medium text-foreground">{s.name}</span>
-          {s.fda && <SourceTag label="FDA" breast={Boolean(s.fda.breast)} />}
-          {s.ema && <SourceTag label="EMA" breast={Boolean(s.emaBreast)} />}
+          {s.fda && <SourceTag label="FDA" state={fdaBreastState(s)} />}
+          {s.ema && <SourceTag label="EMA" state={emaBreastState(s)} />}
         </button>
       </PopoverTrigger>
       <PopoverContent

@@ -12,6 +12,8 @@ import { z } from "zod";
  * - `fda.breast` och `ema.breast`: första meningen i den officiella
  *   indikationstexten som nämner bröst ("breast"), ordagrant. Bara att ordet
  *   finns, inte att godkännandet gäller studiens population.
+ * - `fda.breast_absent` och `ema.breast_absent`: indikationstext finns och
+ *   nämner inte bröst. Saknas båda fälten är det okänt.
  *
  * Allt valideras här. En post som inte följer formatet hoppas över, så att
  * fel i datat aldrig kan påverka resten av sidan. Saknas fälten (äldre data)
@@ -86,6 +88,12 @@ const EmaBreastSchema = z.object({
   url: z.unknown().optional(),
 });
 
+/**
+ * Bröstcancer i indikationstexten: "breast" (meningen finns), "absent"
+ * (texten finns men nämner det inte) eller "unknown" (ingen text lästes).
+ */
+export type BreastState = "breast" | "absent" | "unknown";
+
 /** Mening ur indikationstexten som nämner bröstcancer, med källa. */
 export type BreastMention = {
   /** Ordagrann mening (engelska) */
@@ -117,6 +125,8 @@ export type FdaStatus = {
   label?: FdaLabel;
   /** Indikationstexten nämner bröstcancer (någon av substansens etiketter) */
   breast?: BreastMention;
+  /** Etikett med indikationstext finns, ingen av etiketterna nämner bröstcancer */
+  breastAbsent?: boolean;
 };
 
 export type EmaProduct = {
@@ -137,7 +147,19 @@ export type RegulatorySubstance = {
   ema?: EmaProduct[];
   /** EMA:s indikationstext nämner bröstcancer (någon av substansens produkter) */
   emaBreast?: BreastMention;
+  /** Alla EMA-produkter har indikationstext, ingen nämner bröstcancer */
+  emaBreastAbsent?: boolean;
 };
+
+export function fdaBreastState(s: RegulatorySubstance): BreastState {
+  if (s.fda?.breast) return "breast";
+  return s.fda?.breastAbsent ? "absent" : "unknown";
+}
+
+export function emaBreastState(s: RegulatorySubstance): BreastState {
+  if (s.emaBreast) return "breast";
+  return s.emaBreastAbsent ? "absent" : "unknown";
+}
 
 export type RegulatorySources = {
   fda?: { name: string; dataDate?: string };
@@ -160,6 +182,7 @@ function parseFda(raw: unknown): FdaStatus | undefined {
     url: safeUrl(r.data.url),
   };
   if (r.data.marketed === false) out.marketed = false;
+  const absent = (raw as { breast_absent?: unknown } | null)?.breast_absent === true;
   const b = FdaBreastSchema.safeParse((raw as { breast?: unknown } | null)?.breast);
   if (b.success) {
     out.breast = {
@@ -169,6 +192,8 @@ function parseFda(raw: unknown): FdaStatus | undefined {
       url: safeUrl(b.data.url),
       date: b.data.date,
     };
+  } else if (absent) {
+    out.breastAbsent = true;
   }
   const l = LabelSchema.safeParse(r.data.label);
   if (r.data.label !== undefined && l.success && l.data.indication) {
@@ -251,7 +276,18 @@ export function parseRegulatoryStatus(raw: unknown): Parsed | null {
     if (!fda && !ema) continue;
     const name = typeof v.name === "string" && v.name.trim() ? v.name : key;
     const emaBreast = ema ? parseEmaBreast(v.ema) : undefined;
-    substances.set(key, { key, name: displayName(name), fda, ema, emaBreast });
+    const emaBreastAbsent =
+      Boolean(ema) &&
+      !emaBreast &&
+      (v.ema as { breast_absent?: unknown } | null)?.breast_absent === true;
+    substances.set(key, {
+      key,
+      name: displayName(name),
+      fda,
+      ema,
+      emaBreast,
+      ...(emaBreastAbsent ? { emaBreastAbsent } : {}),
+    });
   }
   if (substances.size === 0) return null;
 
@@ -274,10 +310,7 @@ type ArticleLike = {
  * artiklarna på plats och kastar aldrig: går något fel blir det bara inga
  * badges.
  */
-export function attachRegulatory<T extends ArticleLike>(
-  articles: T[],
-  rawStatus: unknown,
-): void {
+export function attachRegulatory<T extends ArticleLike>(articles: T[], rawStatus: unknown): void {
   try {
     const parsed = parseRegulatoryStatus(rawStatus);
     if (!parsed) return;

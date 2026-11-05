@@ -4,6 +4,7 @@ import { PubDateDisplay } from "@/components/ArticleMeta";
 import { Highlight } from "@/components/Highlight";
 import { JournalBadge } from "@/components/JournalBadge";
 import { NewBadge, NoticeBadge } from "@/components/Labels";
+import { RegulatoryBadges } from "@/components/RegulatoryBadges";
 import { ScoreBadge } from "@/components/Score";
 import { listContext, type ArticleSearch } from "@/lib/article-search";
 import { articleId, pubmedUrl, type Article } from "@/lib/articles";
@@ -96,6 +97,7 @@ export function ArticleRow({
             </>
           )}
         </p>
+        <RegulatoryBadges reg={a.regulatory} className="mt-1.5" />
       </div>
       <a
         href={pubmedUrl({ pmid: pmid ?? undefined, url: a.url })}
