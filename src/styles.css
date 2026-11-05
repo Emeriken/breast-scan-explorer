@@ -71,6 +71,9 @@
   --color-warn: var(--warn);
   --color-warn-bg: var(--warn-bg);
   --color-warn-line: var(--warn-line);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-ok-line: var(--ok-line);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -120,6 +123,10 @@
   --warn: oklch(0.479 0.11 58.6);
   --warn-bg: oklch(0.967 0.026 82.4);
   --warn-line: oklch(0.878 0.072 81.9);
+  /* Bröstcancer nämns i indikationstexten (FDA/EMA-badges) */
+  --ok: oklch(0.42 0.09 150);
+  --ok-bg: oklch(0.962 0.03 150);
+  --ok-line: oklch(0.84 0.07 150);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -168,6 +175,9 @@
   --warn: oklch(0.814 0.144 77.6);
   --warn-bg: oklch(0.273 0.044 76.8);
   --warn-line: oklch(0.399 0.071 78.1);
+  --ok: oklch(0.82 0.11 150);
+  --ok-bg: oklch(0.26 0.04 150);
+  --ok-line: oklch(0.4 0.07 150);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
