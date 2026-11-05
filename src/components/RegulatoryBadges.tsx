@@ -215,10 +215,7 @@ function Footnote({ reg, className }: { reg: ArticleRegulatory; className?: stri
       </p>
       <p>
         Hämtat direkt från Drugs@FDA och EMA:s lista över centralt godkända läkemedel, utan AI
-        {checked}.{" "}
-        {reg.basis === "title"
-          ? "Artikeln är ännu inte indexerad i PubMed. Substansnamnet i titeln har matchats direkt mot listorna."
-          : "Substansen är indexerad i PubMed och nämns i titeln."}
+        {checked}. Substansnamnet eller varumärket i titeln har matchats direkt mot listorna.
         {!reg.sources.fda && " FDA kunde inte läsas vid senaste kontrollen."}
         {!reg.sources.ema && " EMA kunde inte läsas vid senaste kontrollen."}
       </p>

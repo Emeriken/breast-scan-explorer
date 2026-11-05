@@ -36,8 +36,6 @@ export type Article = {
   publication_types?: string[];
   /** Nycklar till `regulatory_status.substances` (bara 4–5 poäng) */
   regulatory_substances?: string[];
-  /** "title" när substanserna matchats via titeln (ingen ChemicalList än) */
-  regulatory_basis?: "title";
   /** Validerad FDA/EMA-status, kopplas på i fetchArticles */
   regulatory?: ArticleRegulatory;
 };
