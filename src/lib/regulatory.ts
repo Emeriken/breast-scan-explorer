@@ -8,6 +8,9 @@ import { z } from "zod";
  *   substans.
  * - `regulatory_substances` på artiklar med 4–5 poäng: nycklar till
  *   substanserna ovan.
+ * - `regulatory_basis: "title"` när artikeln ännu saknar PubMed:s
+ *   ChemicalList och substanserna matchats direkt mot FDA/EMA-listorna via
+ *   titeln. Saknas fältet kommer substanserna från ChemicalList.
  *
  * Allt valideras här. En post som inte följer formatet hoppas över, så att
  * fel i datat aldrig kan påverka resten av sidan. Saknas fälten (äldre data)
@@ -109,10 +112,14 @@ export type RegulatorySources = {
   ema?: { name: string; dataDate?: string };
 };
 
+/** Hur substanserna hittades: PubMed:s ChemicalList eller bara titeln. */
+export type RegulatoryBasis = "chemicals" | "title";
+
 export type ArticleRegulatory = {
   substances: RegulatorySubstance[];
   checkedAt?: string;
   sources: RegulatorySources;
+  basis: RegulatoryBasis;
 };
 
 function parseFda(raw: unknown): FdaStatus | undefined {
@@ -209,6 +216,7 @@ export function parseRegulatoryStatus(raw: unknown): Parsed | null {
 type ArticleLike = {
   relevance_score: number;
   regulatory_substances?: unknown;
+  regulatory_basis?: unknown;
   regulatory?: ArticleRegulatory;
 };
 
@@ -237,7 +245,12 @@ export function attachRegulatory<T extends ArticleLike>(
         if (s) subs.push(s);
       }
       if (subs.length) {
-        a.regulatory = { substances: subs, checkedAt: parsed.checkedAt, sources: parsed.sources };
+        a.regulatory = {
+          substances: subs,
+          checkedAt: parsed.checkedAt,
+          sources: parsed.sources,
+          basis: a.regulatory_basis === "title" ? "title" : "chemicals",
+        };
       }
     }
   } catch {
