@@ -9,6 +9,10 @@ import { z } from "zod";
  * - `regulatory_substances` på artiklar med 4–5 poäng: nycklar till
  *   substanserna ovan.
  *
+ * - `fda.breast` och `ema.breast`: första meningen i den officiella
+ *   indikationstexten som nämner bröst ("breast"), ordagrant. Bara att ordet
+ *   finns, inte att godkännandet gäller studiens population.
+ *
  * Allt valideras här. En post som inte följer formatet hoppas över, så att
  * fel i datat aldrig kan påverka resten av sidan. Saknas fälten (äldre data)
  * visas helt enkelt inga badges.
@@ -67,6 +71,33 @@ const EmaProductSchema = z.object({
 
 const SourceSchema = z.object({ name: text, data_date: isoDate.optional() });
 
+const FdaBreastSchema = z.object({
+  text,
+  application: z.string().regex(/^(NDA|BLA)\d+$/),
+  brands: z.array(z.string()).default([]),
+  url: z.unknown().optional(),
+  date: isoDate.optional(),
+});
+
+const EmaBreastSchema = z.object({
+  name: text,
+  text,
+  number: z.string().optional(),
+  url: z.unknown().optional(),
+});
+
+/** Mening ur indikationstexten som nämner bröstcancer, med källa. */
+export type BreastMention = {
+  /** Ordagrann mening (engelska) */
+  text: string;
+  /** Varumärke eller läkemedelsnamn som texten kommer från */
+  product?: string;
+  /** NDA/BLA-nummer eller EMA-produktnummer */
+  id?: string;
+  url?: string;
+  date?: string;
+};
+
 export type FdaLabel = {
   application?: string;
   brands: string[];
@@ -84,6 +115,8 @@ export type FdaStatus = {
   /** false när ingen produkt med substansen marknadsförs enligt Drugs@FDA */
   marketed?: boolean;
   label?: FdaLabel;
+  /** Indikationstexten nämner bröstcancer (någon av substansens etiketter) */
+  breast?: BreastMention;
 };
 
 export type EmaProduct = {
@@ -102,6 +135,8 @@ export type RegulatorySubstance = {
   name: string;
   fda?: FdaStatus;
   ema?: EmaProduct[];
+  /** EMA:s indikationstext nämner bröstcancer (någon av substansens produkter) */
+  emaBreast?: BreastMention;
 };
 
 export type RegulatorySources = {
@@ -125,6 +160,16 @@ function parseFda(raw: unknown): FdaStatus | undefined {
     url: safeUrl(r.data.url),
   };
   if (r.data.marketed === false) out.marketed = false;
+  const b = FdaBreastSchema.safeParse((raw as { breast?: unknown } | null)?.breast);
+  if (b.success) {
+    out.breast = {
+      text: b.data.text,
+      product: b.data.brands.filter((x) => x.trim()).join(", ") || undefined,
+      id: b.data.application,
+      url: safeUrl(b.data.url),
+      date: b.data.date,
+    };
+  }
   const l = LabelSchema.safeParse(r.data.label);
   if (r.data.label !== undefined && l.success && l.data.indication) {
     out.label = {
@@ -158,6 +203,17 @@ function parseEma(raw: unknown): EmaProduct[] | undefined {
     });
   }
   return out.length ? out : undefined;
+}
+
+function parseEmaBreast(raw: unknown): BreastMention | undefined {
+  const r = EmaBreastSchema.safeParse((raw as { breast?: unknown } | null)?.breast);
+  if (!r.success) return undefined;
+  return {
+    text: r.data.text,
+    product: r.data.name,
+    id: r.data.number?.trim() || undefined,
+    url: safeUrl(r.data.url),
+  };
 }
 
 /** "trastuzumab deruxtecan" → "Trastuzumab deruxtecan". Övriga tecken som i PubMed. */
@@ -194,7 +250,8 @@ export function parseRegulatoryStatus(raw: unknown): Parsed | null {
     const ema = sources.ema ? parseEma(v.ema) : undefined;
     if (!fda && !ema) continue;
     const name = typeof v.name === "string" && v.name.trim() ? v.name : key;
-    substances.set(key, { key, name: displayName(name), fda, ema });
+    const emaBreast = ema ? parseEmaBreast(v.ema) : undefined;
+    substances.set(key, { key, name: displayName(name), fda, ema, emaBreast });
   }
   if (substances.size === 0) return null;
 

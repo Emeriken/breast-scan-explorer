@@ -5,6 +5,7 @@ import { externalLinkProps } from "@/lib/categories";
 import { cn } from "@/lib/utils";
 import type {
   ArticleRegulatory,
+  BreastMention,
   EmaProduct,
   FdaStatus,
   RegulatorySubstance,
@@ -31,16 +32,24 @@ function formatDate(iso?: string): string {
 }
 
 function statusText(s: RegulatorySubstance): string {
-  if (s.fda && s.ema) return "godkänd av FDA och centralt i EU (EMA)";
-  if (s.fda) return "godkänd av FDA";
-  return "centralt godkänd i EU (EMA)";
+  const base =
+    s.fda && s.ema
+      ? "godkänd av FDA och centralt i EU (EMA)"
+      : s.fda
+        ? "godkänd av FDA"
+        : "centralt godkänd i EU (EMA)";
+  const breast = [s.fda?.breast && "FDA", s.emaBreast && "EMA"].filter(Boolean);
+  return breast.length
+    ? `${base}, indikationstexten hos ${breast.join(" och ")} nämner bröstcancer`
+    : base;
 }
 
-function SourceTag({ label }: { label: "FDA" | "EMA" }) {
+function SourceTag({ label, breast }: { label: "FDA" | "EMA"; breast?: boolean }) {
   return (
     <span className="inline-flex items-center gap-0.5 rounded-sm border border-border px-1 font-mono text-xs font-semibold leading-4 tracking-wider text-ink-2">
       <Check aria-hidden className="h-2.5 w-2.5" strokeWidth={3} />
       {label}
+      {breast && <span className="font-sans font-medium tracking-normal"> bröst</span>}
     </span>
   );
 }
@@ -107,6 +116,44 @@ function Indication({
   );
 }
 
+function BreastQuote({
+  breast,
+  source,
+  linkText,
+}: {
+  breast: BreastMention;
+  source: string;
+  linkText: string;
+}) {
+  const from = [breast.product, breast.id].filter(Boolean).join(" · ");
+  const date = breast.date ? `, ${formatDate(breast.date)}` : "";
+  return (
+    <div className="mt-2">
+      <p className="text-xs font-medium text-foreground/80">
+        Bröstcancer i {source}
+        {from && (
+          <span className="font-normal text-muted-foreground">
+            {" "}
+            ({from}
+            {date})
+          </span>
+        )}
+      </p>
+      <p
+        lang="en"
+        className="mt-1 border-l-2 border-border pl-2 text-xs leading-relaxed text-foreground/80"
+      >
+        {breast.text}
+      </p>
+      {breast.url && (
+        <p className="mt-1">
+          <SourceLink href={breast.url}>{linkText}</SourceLink>
+        </p>
+      )}
+    </div>
+  );
+}
+
 function FdaSection({ fda, print }: { fda: FdaStatus; print?: boolean }) {
   const label = fda.label;
   const labelBrands = label?.brands.length ? ` för ${label.brands.join(", ")}` : "";
@@ -129,6 +176,13 @@ function FdaSection({ fda, print }: { fda: FdaStatus; print?: boolean }) {
           <SourceLink href={fda.url}>Drugs@FDA</SourceLink>
         </p>
       )}
+      {fda.breast && (
+        <BreastQuote
+          breast={fda.breast}
+          source="etikettens indikationstext"
+          linkText="Etiketten (DailyMed)"
+        />
+      )}
       {label?.indication && (
         <Indication
           heading={`Indikation enligt etiketten${labelBrands}${labelDate}`}
@@ -143,7 +197,15 @@ function FdaSection({ fda, print }: { fda: FdaStatus; print?: boolean }) {
   );
 }
 
-function EmaSection({ products, print }: { products: EmaProduct[]; print?: boolean }) {
+function EmaSection({
+  products,
+  breast,
+  print,
+}: {
+  products: EmaProduct[];
+  breast?: BreastMention;
+  print?: boolean;
+}) {
   return (
     <section>
       <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">EMA</h4>
@@ -175,6 +237,7 @@ function EmaSection({ products, print }: { products: EmaProduct[]; print?: boole
           )}
         </div>
       ))}
+      {breast && <BreastQuote breast={breast} source="EMA:s indikationstext" linkText="EMA" />}
     </section>
   );
 }
@@ -199,7 +262,7 @@ function SubstanceDetails({
         )}
       >
         {s.fda && <FdaSection fda={s.fda} print={print} />}
-        {s.ema && <EmaSection products={s.ema} print={print} />}
+        {s.ema && <EmaSection products={s.ema} breast={s.emaBreast} print={print} />}
       </div>
     </div>
   );
@@ -212,6 +275,11 @@ function Footnote({ reg, className }: { reg: ArticleRegulatory; className?: stri
       <p>
         Gäller substansen, inte nödvändigtvis studiens indikation, kombination eller beredningsform.
         Saknas en uppgift betyder det inte att läkemedlet är ogodkänt.
+      </p>
+      <p>
+        ”Bröst” betyder att ordet breast står i den officiella indikationstexten. Meningen visas
+        ordagrant. Den säger inte att godkännandet gäller studiens population. Saknas markeringen
+        kan texten saknas eller inte nämna bröstcancer.
       </p>
       <p>
         Hämtat direkt från Drugs@FDA och EMA:s lista över centralt godkända läkemedel, utan AI
@@ -233,8 +301,8 @@ function SubstanceChip({ s, reg }: { s: RegulatorySubstance; reg: ArticleRegulat
           className="hit-area inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2 py-0.5 text-xs transition-colors hover:border-input hover:bg-muted sm:min-h-7"
         >
           <span className="font-medium text-foreground">{s.name}</span>
-          {s.fda && <SourceTag label="FDA" />}
-          {s.ema && <SourceTag label="EMA" />}
+          {s.fda && <SourceTag label="FDA" breast={Boolean(s.fda.breast)} />}
+          {s.ema && <SourceTag label="EMA" breast={Boolean(s.emaBreast)} />}
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -306,6 +374,12 @@ export function RegulatorySection({
 /** true om någon substans har en indikationstext att skriva ut. */
 export function hasIndications(reg?: ArticleRegulatory): boolean {
   return Boolean(
-    reg?.substances.some((s) => s.fda?.label?.indication || s.ema?.some((p) => p.indication)),
+    reg?.substances.some(
+      (s) =>
+        s.fda?.label?.indication ||
+        s.fda?.breast ||
+        s.emaBreast ||
+        s.ema?.some((p) => p.indication),
+    ),
   );
 }
