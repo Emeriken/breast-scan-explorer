@@ -8,6 +8,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { Legend } from "@/components/Legend";
 import { ArticleCard } from "@/components/list/ArticleCard";
 import { ArticleRows, RowHeader } from "@/components/list/ArticleRow";
+import { TIER_BAND_CLASS, TierHeading, groupByScore } from "@/components/list/TierHeading";
 import { LowRelevanceRows } from "@/components/list/LowRelevanceRows";
 import { StatusBar } from "@/components/list/StatusBar";
 import { Toolbar } from "@/components/list/Toolbar";
@@ -32,49 +33,7 @@ import {
 } from "@/lib/article-list";
 import { useListView } from "@/lib/list-view";
 import { SEARCHED_FIELDS, parseQuery, withoutTerm } from "@/lib/search";
-import { RUBRIC, roundScore } from "@/components/Score";
 import { cn } from "@/lib/utils";
-
-/** En nivå av AI-relevans inom en vecka, t.ex. alla med 5. */
-type Tier = { score: number; items: Article[] };
-
-/** Delar en vecka (sorterad på AI-relevans, högst först) i nivåer. */
-function groupByScore(items: Article[]): Tier[] {
-  const tiers: Tier[] = [];
-  for (const a of items) {
-    const score = roundScore(a.relevance_score);
-    const last = tiers[tiers.length - 1];
-    if (last && last.score === score) last.items.push(a);
-    else tiers.push({ score, items: [a] });
-  }
-  return tiers;
-}
-
-/**
- * Rubrik för en nivå: "AI-relevans 5 · Praxisförändrande …" och antalet.
- * Skalans text står här en gång i stället för på varje artikel.
- */
-function TierHeading({
-  tier,
-  as: Tag = "h3",
-  className,
-}: {
-  tier: Tier;
-  as?: "h3" | "div";
-  className?: string;
-}) {
-  const rubric = RUBRIC.find((r) => r.score === tier.score)?.text;
-  return (
-    <Tag className={cn("text-meta text-muted-foreground", className)}>
-      <span className="font-semibold text-foreground">AI-relevans {tier.score}</span>
-      {rubric && <> · {rubric}</>}
-      <span className="whitespace-nowrap">
-        {" "}
-        · {tier.items.length} {tier.items.length === 1 ? "artikel" : "artiklar"}
-      </span>
-    </Tag>
-  );
-}
 
 /** Veckans namn, t.ex. "Vecka 42", eller datumet om veckan inte går att räkna ut. */
 function weekLabel(key: string): string {
@@ -436,11 +395,7 @@ export function ArticleBrowser() {
                           {tiered ? (
                             groupByScore(main).map((t) => (
                               <div key={t.score}>
-                                <TierHeading
-                                  tier={t}
-                                  as="div"
-                                  className="border-t border-border bg-muted px-3 py-2 first:border-t-0 sm:px-4"
-                                />
+                                <TierHeading tier={t} as="div" className={TIER_BAND_CLASS} />
                                 <ArticleRows items={t.items} query={query} listSearch={search} />
                               </div>
                             ))

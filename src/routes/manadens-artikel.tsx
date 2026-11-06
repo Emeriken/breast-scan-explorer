@@ -6,11 +6,12 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { z } from "zod";
 import {
   ArrowLeft,
   CalendarDays,
+  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -25,7 +26,8 @@ import { AiSections, ArticleHeading, ArticleLinks } from "@/components/ArticlePa
 import { ErrorState } from "@/components/ErrorState";
 import { JcPowerPoint } from "@/components/JcPowerPoint";
 import { DisclaimerFooter } from "@/components/Footer";
-import { ArticleCard } from "@/components/list/ArticleCard";
+import { ArticleRows } from "@/components/list/ArticleRow";
+import { TIER_BAND_CLASS, TierHeading, groupByScore } from "@/components/list/TierHeading";
 import { RegulatorySection, hasIndications } from "@/components/RegulatoryBadges";
 import { Segmented } from "@/components/Segmented";
 import { articlesQueryOptions, PRODUCT_NAME, type Article } from "@/lib/articles";
@@ -153,6 +155,7 @@ function MonthStepper({
   firstKey,
   lastKey,
   onChange,
+  disabled = false,
 }: {
   year: number;
   month: number;
@@ -160,6 +163,8 @@ function MonthStepper({
   firstKey: number | null;
   lastKey: number | null;
   onChange: (year: number, month: number) => void;
+  /** Medan datat laddas: månaden är bara en gissning */
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const prev = shiftMonth(year, month, -1);
@@ -183,14 +188,14 @@ function MonthStepper({
         variant="outline"
         size="icon"
         className="hit-area shrink-0"
-        disabled={prevDisabled}
+        disabled={disabled || prevDisabled}
         aria-label={`Föregående månad: ${MONTHS_SV[prev.month - 1]} ${prev.year}`}
         onClick={() => onChange(prev.year, prev.month)}
       >
         <ChevronLeft className="h-4 w-4" />
       </Button>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
+        <PopoverTrigger asChild disabled={disabled}>
           <Button
             variant="outline"
             className="h-9 min-w-0 flex-1 justify-between gap-2 px-3 text-meta font-normal sm:flex-none"
@@ -250,7 +255,7 @@ function MonthStepper({
         variant="outline"
         size="icon"
         className="hit-area shrink-0"
-        disabled={nextDisabled}
+        disabled={disabled || nextDisabled}
         aria-label={`Nästa månad: ${MONTHS_SV[next.month - 1]} ${next.year}`}
         onClick={() => onChange(next.year, next.month)}
       >
@@ -362,12 +367,14 @@ function ManadensArtikel() {
   const useFallback = top.length === 0 && fallback.length > 0;
   const list = top.length > 0 ? top : fallback;
 
+  const prepareParam = search.prepare === undefined ? "" : String(search.prepare);
   const prepareArticle = useMemo(() => {
-    const p = search.prepare === undefined ? "" : String(search.prepare);
-    if (!p) return null;
-    const byPmid = /^\d+$/.test(p);
-    return articles.find((a) => (byPmid ? pmidOf(a) === p : a.url === p)) ?? null;
-  }, [search.prepare, articles]);
+    if (!prepareParam) return null;
+    const byPmid = /^\d+$/.test(prepareParam);
+    return (
+      articles.find((a) => (byPmid ? pmidOf(a) === prepareParam : a.url === prepareParam)) ?? null
+    );
+  }, [prepareParam, articles]);
 
   if (prepareArticle) {
     return (
@@ -379,9 +386,42 @@ function ManadensArtikel() {
     );
   }
 
+  // En länk till förberedelsen medan datat laddas: visa förberedelsens form, inte listan
+  if (prepareParam && isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <main id="content" className="mx-auto max-w-5xl px-4 py-6 sm:py-8" aria-busy="true">
+          <p className="sr-only" role="status">
+            Laddar artikeln
+          </p>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_23rem]">
+            <div className="h-96 animate-pulse rounded-md border bg-card" />
+            <div className="h-72 animate-pulse rounded-md border bg-card" />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  const prepareNotFound = Boolean(prepareParam) && !isLoading && !error;
+
   const latestCandidate = latestCandidateKey !== null ? fromMonthKey(latestCandidateKey) : null;
   const showJumpToLatest =
     latestCandidate !== null && (latestCandidate.year !== year || latestCandidate.month !== month);
+
+  // Få kandidater den här månaden? Peka på närmaste tidigare månad med fler.
+  const counts = monthStats.byTreatment[treatment];
+  const shownCount = candidateCount(counts.get(monthKey(year, month)));
+  let richer: { year: number; month: number; count: number } | null = null;
+  if (shownCount > 0 && shownCount < 3) {
+    for (let k = monthKey(year, month) - 1; k >= (monthStats.first ?? Infinity); k--) {
+      const c = candidateCount(counts.get(k));
+      if (c >= 3) {
+        richer = { ...fromMonthKey(k), count: c };
+        break;
+      }
+    }
+  }
 
   const prepare = (a: Article) => {
     const pmid = pmidOf(a);
@@ -389,20 +429,22 @@ function ManadensArtikel() {
   };
 
   const monthLabel = `${MONTHS_SV[month - 1].toLowerCase()} ${year}`;
-  const card = (a: Article) => (
-    <ArticleCard
-      key={a.pmid ?? a.url}
-      article={a}
-      query={null}
-      listSearch={{}}
-      meshMerge={false}
-      actions={
-        <Button variant="outline" onClick={() => prepare(a)}>
-          <Presentation aria-hidden className="h-4 w-4" />
-          Förbered presentation
-        </Button>
-      }
-    />
+  const prepareButton = (a: Article) => (
+    <Button variant="outline" size="sm" onClick={() => prepare(a)}>
+      <Presentation aria-hidden className="h-4 w-4" />
+      Förbered presentation
+    </Button>
+  );
+  /** Kandidater som listrader, en rubrik per AI-relevans (som i Alla artiklar). */
+  const rows = (items: Article[]) => (
+    <div className="overflow-hidden rounded-md border border-border bg-card">
+      {groupByScore(items).map((t) => (
+        <div key={t.score}>
+          <TierHeading tier={t} as="div" className={TIER_BAND_CLASS} />
+          <ArticleRows items={t.items} query={null} listSearch={{}} action={prepareButton} />
+        </div>
+      ))}
+    </div>
   );
 
   return (
@@ -410,10 +452,22 @@ function ManadensArtikel() {
       <main id="content" tabIndex={-1} className="mx-auto max-w-5xl px-4 pb-8 outline-none">
         <div className="flex flex-col gap-1 pb-4 pt-6 sm:pt-7">
           <h1 className="text-2xl font-semibold leading-7.5 tracking-[-0.02em]">Journal club</h1>
-          <p className="text-sm leading-5.5 text-muted-foreground">
-            Månadens artikel: presentationskandidater för 15 minuter.
+          <p className="text-sm leading-5.5 text-pretty text-muted-foreground">
+            Välj månadens artikel och förbered en presentation på 15 minuter.
           </p>
         </div>
+
+        {prepareNotFound && (
+          <div
+            role="alert"
+            className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn"
+          >
+            <p>Artikeln i länken finns inte i datat. Välj en kandidat nedan.</p>
+            <Button variant="outline" size="sm" onClick={() => setSearch({ prepare: undefined })}>
+              Stäng
+            </Button>
+          </div>
+        )}
 
         <section
           aria-label="Välj område och månad"
@@ -425,27 +479,29 @@ function ManadensArtikel() {
             ariaLabel="Behandlingsområde"
             value={treatment}
             options={TREATMENTS.map((t) => ({ value: t.key, label: t.short, title: t.label }))}
-            onChange={(t) => setSearch({ treatment: t })}
+            // Månaden står kvar när man byter område
+            onChange={(t) => setSearch({ treatment: t, year, month })}
             className="max-w-full overflow-x-auto"
           />
           <MonthStepper
             year={year}
             month={month}
-            counts={monthStats.byTreatment[treatment]}
+            counts={counts}
             firstKey={monthStats.first}
             lastKey={monthStats.last}
             onChange={(y, m) => setSearch({ year: y, month: m })}
+            disabled={isLoading}
           />
           <div className="ml-auto">
             <CandidatesInfo />
           </div>
         </section>
 
-        <section className="mt-6" aria-live="polite">
+        <section className="mt-6" aria-live="polite" aria-busy={isLoading}>
           {isLoading && (
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-40 animate-pulse rounded-md border bg-card" />
+                <div key={i} className="h-28 animate-pulse rounded-md border bg-card" />
               ))}
             </div>
           )}
@@ -455,7 +511,7 @@ function ManadensArtikel() {
           {!isLoading && !error && list.length === 0 && (
             <div className="rounded-md border border-dashed border-input p-8 text-center sm:p-10">
               <p className="font-medium">Inga kandidater för {monthLabel}.</p>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-1 text-sm text-pretty text-muted-foreground">
                 Inga artiklar inom {treatmentDef.label.toLowerCase()} med AI-relevans 3 eller högre
                 har publiceringsmånad {monthLabel}.
               </p>
@@ -479,7 +535,7 @@ function ManadensArtikel() {
             <>
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h2 className="text-heading font-semibold tracking-[-0.01em]">
-                  {useFallback ? "AI-relevans 3" : "AI-relevans 4–5"}{" "}
+                  Kandidater{" "}
                   <span className="text-sm font-normal text-muted-foreground">
                     {treatmentDef.label}, {monthLabel}
                   </span>
@@ -488,40 +544,38 @@ function ManadensArtikel() {
                   {list.length} {list.length === 1 ? "kandidat" : "kandidater"}
                 </p>
               </div>
+              {richer && (
+                <p className="mb-3 text-meta text-muted-foreground">
+                  Få kandidater i {monthLabel}.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setSearch({ year: richer.year, month: richer.month })}
+                    className="hit-area font-medium text-foreground underline underline-offset-2 hover:text-foreground/80"
+                  >
+                    {MONTHS_SV[richer.month - 1]} {richer.year} har {richer.count}
+                  </button>
+                </p>
+              )}
               {useFallback && (
                 <div className="mb-3 rounded-md border border-warn-line bg-warn-bg p-3 text-sm text-warn">
                   Inga artiklar med AI-relevans 4–5 den här månaden. Visar artiklar med AI-relevans
                   3 i stället.
                 </div>
               )}
-              <div className="flex flex-col gap-3">{list.map(card)}</div>
+              {rows(list)}
             </>
           )}
         </section>
 
         {!isLoading && !error && otherTopArticles.length > 0 && (
-          <section className="mt-10" aria-labelledby="andra-omraden">
-            <div className="mb-3">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h2 id="andra-omraden" className="text-heading font-semibold tracking-[-0.01em]">
-                  AI-relevans 4–5 i andra områden
-                </h2>
-                <p className="text-meta text-muted-foreground">
-                  {otherTopArticles.length} {otherTopArticles.length === 1 ? "artikel" : "artiklar"}
-                </p>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Från {monthLabel}. Värdefulla att lyfta om inget med hög AI-relevans finns i ditt
-                eget område.
-              </p>
-            </div>
-            <div className="flex flex-col gap-3">{otherTopArticles.map(card)}</div>
-          </section>
+          <OtherAreas count={otherTopArticles.length} monthLabel={monthLabel}>
+            {rows(otherTopArticles)}
+          </OtherAreas>
         )}
 
         {!isLoading && !error && (
-          <p className="mt-10 border-t border-border pt-6 text-sm leading-5.5 text-muted-foreground">
-            Vill du presentera en annan artikel, till exempel en med AI-relevans 3? Öppna den under{" "}
+          <p className="mt-10 border-t border-border pt-6 text-sm leading-5.5 text-pretty text-muted-foreground">
+            En annan artikel? Öppna den under{" "}
             <Link
               to="/"
               search={{ cat: [treatmentDef.label] }}
@@ -529,8 +583,7 @@ function ManadensArtikel() {
             >
               Alla artiklar
             </Link>{" "}
-            och tryck på <span className="font-medium text-ink-2">Förbered för journal club</span>{" "}
-            på artikelsidan.
+            och välj <span className="font-medium text-ink-2">Förbered för journal club</span>.
           </p>
         )}
       </main>
@@ -539,21 +592,94 @@ function ManadensArtikel() {
   );
 }
 
+/** AI-relevans 4–5 från andra områden, ihopfällt: ett stöd, inte huvudvalet. */
+function OtherAreas({
+  count,
+  monthLabel,
+  children,
+}: {
+  count: number;
+  monthLabel: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <section className="mt-8" aria-labelledby={`${id}-h`}>
+      <h2 id={`${id}-h`} className="text-heading font-semibold tracking-[-0.01em]">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={open ? id : undefined}
+          onClick={() => setOpen((v) => !v)}
+          className="hit-area inline-flex items-center gap-2 rounded-sm text-left hover:text-foreground/80"
+        >
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+              !open && "-rotate-90",
+            )}
+          />
+          AI-relevans 4–5 i andra områden
+          <span className="text-sm font-normal text-muted-foreground">{count}</span>
+        </button>
+      </h2>
+      <p className="ml-6 mt-1 text-meta text-pretty text-muted-foreground">
+        Från {monthLabel}. Värda att lyfta om ditt eget område har få kandidater.
+      </p>
+      {open && (
+        <div id={id} className="mt-3">
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function sortByScoreThenDate(a: Article, b: Article) {
   if (b.relevance_score !== a.relevance_score) return b.relevance_score - a.relevance_score;
   return (b.scored_at ?? "").localeCompare(a.scored_at ?? "");
 }
 
+/**
+ * Checklistan, i tre delar i presentationens ordning. Punkternas ordning är
+ * densamma som tidigare, så sparade bockar hamnar rätt.
+ */
 const CHECKLIST_ITEMS = [
-  "Bakgrund och knowledge gap",
+  "Bakgrund och kunskapslucka",
   "Forskningsfråga och studiedesign (PICO)",
   "Patientpopulation",
-  "Primärt resultat (HR, CI, p-värde)",
-  "Sekundära endpoints och subgrupper",
+  "Primärt resultat (HR, KI, p-värde)",
+  "Sekundära effektmått och subgrupper",
   "Biverkningsprofil",
   "Styrkor och begränsningar",
   "Klinisk implikation för SÖS-patienter",
-  "Tre diskussionsfrågor",
+  "En eller två diskussionsfrågor",
+];
+
+/** Vilken bild i presentationen punkten hör till, och var AI-texten kan hjälpa. */
+const CHECKLIST_HINTS: { slide: string; ai?: "central_finding" | "limitation" }[] = [
+  { slide: "Bild 2" },
+  { slide: "Bild 2–3" },
+  { slide: "Bild 3" },
+  { slide: "Bild 4", ai: "central_finding" },
+  { slide: "Bild 4" },
+  { slide: "Bild 4" },
+  { slide: "Bild 6", ai: "limitation" },
+  { slide: "Bild 7" },
+  { slide: "Bild 8" },
+];
+
+const AI_HINT_LABEL = {
+  central_finding: "Se Centralt fynd i AI-djupanalysen",
+  limitation: "Se Begränsning i AI-djupanalysen",
+};
+
+const CHECKLIST_GROUPS = [
+  { title: "Studien", items: [0, 1, 2] },
+  { title: "Resultat", items: [3, 4, 5] },
+  { title: "Diskussion", items: [6, 7, 8] },
 ];
 
 function PrepareView({
@@ -569,6 +695,8 @@ function PrepareView({
   const storageKey = `presentation-checklist:${article.url}`;
   const [checked, setChecked] = useState<boolean[]>(() => CHECKLIST_ITEMS.map(() => false));
   const [printIndications, setPrintIndications] = useState(false);
+  // Listan före "Börja om", så att det går att ångra en stund
+  const [undo, setUndo] = useState<boolean[] | null>(null);
   // Spara först när den sparade listan för just den här artikeln är inläst,
   // annars skrivs den över med en tom lista innan den hunnit läsas in.
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
@@ -585,6 +713,7 @@ function PrepareView({
       // Lagring blockerad eller trasig: börja med en tom lista
     }
     setChecked(next);
+    setUndo(null);
     setLoadedKey(storageKey);
   }, [storageKey]);
 
@@ -598,11 +727,26 @@ function PrepareView({
   }, [storageKey, checked, loadedKey]);
 
   useEffect(() => {
+    if (!undo) return;
+    const t = window.setTimeout(() => setUndo(null), 10_000);
+    return () => window.clearTimeout(t);
+  }, [undo]);
+
+  useEffect(() => {
     document.title = `Förbered: ${article.title.slice(0, 50)} · ${PRODUCT_NAME}`;
   }, [article.title]);
 
-  const toggle = (i: number) => setChecked((arr) => arr.map((v, idx) => (idx === i ? !v : v)));
+  const toggle = (i: number) => {
+    setUndo(null);
+    setChecked((arr) => arr.map((v, idx) => (idx === i ? !v : v)));
+  };
+  const reset = () => {
+    setUndo(checked);
+    setChecked(CHECKLIST_ITEMS.map(() => false));
+  };
   const done = checked.filter(Boolean).length;
+  const allDone = done === CHECKLIST_ITEMS.length;
+  const da = article.deep_analysis;
 
   return (
     <div className="min-h-screen bg-background">
@@ -611,8 +755,8 @@ function PrepareView({
         tabIndex={-1}
         className="mx-auto max-w-5xl px-4 py-6 outline-none sm:py-8 print:max-w-none print:px-0 print:py-0"
       >
-        <div className="max-w-3xl print:max-w-none">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 print:hidden">
+          <div className="flex min-w-0 items-center gap-3">
             <Button
               variant="ghost"
               size="sm"
@@ -622,24 +766,29 @@ function PrepareView({
               <ArrowLeft className="h-4 w-4" />
               Tillbaka
             </Button>
-            <div className="flex flex-wrap items-center gap-3">
-              {hasIndications(article.regulatory) && (
-                <label className="flex cursor-pointer items-center gap-2 text-meta text-muted-foreground">
-                  <Checkbox
-                    checked={printIndications}
-                    onCheckedChange={(v) => setPrintIndications(v === true)}
-                  />
-                  Ta med indikationstexter i utskriften
-                </label>
-              )}
-              <Button size="sm" onClick={() => window.print()}>
-                <Printer className="h-4 w-4" />
-                Skriv ut
-              </Button>
-            </div>
+            <p className="truncate text-meta text-muted-foreground">
+              Förbereder journal club · {area}
+            </p>
           </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {hasIndications(article.regulatory) && (
+              <label className="flex cursor-pointer items-center gap-2 text-meta text-muted-foreground">
+                <Checkbox
+                  checked={printIndications}
+                  onCheckedChange={(v) => setPrintIndications(v === true)}
+                />
+                Ta med indikationstexter i utskriften
+              </label>
+            )}
+            <Button size="sm" variant="outline" onClick={() => window.print()}>
+              <Printer className="h-4 w-4" />
+              Skriv ut
+            </Button>
+          </div>
+        </div>
 
-          <article className="flex flex-col rounded-md border border-border bg-card px-5 pb-7 pt-6 sm:px-8 sm:pb-8 sm:pt-7 print:rounded-none print:border-0 print:p-0">
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_23rem] print:block">
+          <article className="flex min-w-0 flex-col rounded-md border border-border bg-card px-5 pb-7 pt-6 sm:px-7 sm:pb-8 sm:pt-7 print:rounded-none print:border-0 print:p-0">
             <ArticleHeading article={article} doiInline />
             <ArticleLinks article={article} className="mt-4.5 print:hidden" />
             <AiSections article={article} />
@@ -650,65 +799,110 @@ function PrepareView({
             />
           </article>
 
-          <JcPowerPoint article={article} area={area} />
+          <div className="flex flex-col gap-4 print:mt-8">
+            <JcPowerPoint article={article} area={area} />
 
-          <section className="mt-4 rounded-md border border-border bg-card px-5 py-6 sm:px-8 print:mt-8 print:rounded-none print:border-0 print:p-0">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-heading font-semibold tracking-[-0.01em]">
-                Checklista för 15 minuter journal club
-              </h2>
-              <p className="text-meta text-muted-foreground print:hidden" aria-live="polite">
-                {done} av {CHECKLIST_ITEMS.length} klara
-                {done > 0 && (
+            <section className="rounded-md border border-border bg-card px-5 py-5 sm:px-6 print:rounded-none print:border-0 print:p-0">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-heading font-semibold tracking-[-0.01em]">
+                  Checklista för 15 minuter
+                </h2>
+                <p className="text-meta text-muted-foreground print:hidden" aria-live="polite">
+                  {undo ? (
+                    <>
+                      Tömd ·{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChecked(undo);
+                          setUndo(null);
+                        }}
+                        className="hit-area font-medium text-foreground underline underline-offset-2"
+                      >
+                        Ångra
+                      </button>
+                    </>
+                  ) : allDone ? (
+                    <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                      <CheckCircle2 aria-hidden className="h-3.5 w-3.5" />
+                      Alla {CHECKLIST_ITEMS.length} klara
+                    </span>
+                  ) : (
+                    <>
+                      {done} av {CHECKLIST_ITEMS.length} klara
+                    </>
+                  )}
+                </p>
+              </div>
+              <div
+                aria-hidden
+                className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted print:hidden"
+              >
+                <div
+                  className="h-full rounded-full bg-foreground transition-[width]"
+                  style={{ width: `${(done / CHECKLIST_ITEMS.length) * 100}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground print:hidden">
+                Bildnumren gäller PowerPoint-presentationen. Sparas i den här webbläsaren
+                {done > 0 && !undo && (
                   <>
                     {" · "}
                     <button
                       type="button"
-                      onClick={() => setChecked(CHECKLIST_ITEMS.map(() => false))}
-                      className="hit-area font-medium text-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
+                      onClick={reset}
+                      className="hit-area font-medium text-ink-2 underline-offset-2 hover:text-foreground hover:underline"
                     >
                       Börja om
                     </button>
                   </>
                 )}
               </p>
-            </div>
-            <div
-              aria-hidden
-              className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted print:hidden"
-            >
-              <div
-                className="h-full rounded-full bg-foreground transition-[width]"
-                style={{ width: `${(done / CHECKLIST_ITEMS.length) * 100}%` }}
-              />
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground print:hidden">
-              Sparas automatiskt i den här webbläsaren.
-            </p>
-            <ul className="mt-4 space-y-1">
-              {CHECKLIST_ITEMS.map((item, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <Checkbox
-                    id={`chk-${i}`}
-                    checked={checked[i]}
-                    onCheckedChange={() => toggle(i)}
-                    className="mt-2.5 print:hidden"
-                  />
-                  <span className="mt-1.5 hidden h-4 w-4 shrink-0 rounded-sm border border-foreground print:inline-block" />
-                  <label
-                    htmlFor={`chk-${i}`}
-                    className={cn(
-                      "flex-1 cursor-pointer py-1.5 text-sm leading-relaxed",
-                      checked[i] &&
-                        "text-muted-foreground line-through print:text-foreground print:no-underline",
-                    )}
-                  >
-                    {item}
-                  </label>
-                </li>
-              ))}
-            </ul>
-          </section>
+              <div className="mt-3 flex flex-col gap-3">
+                {CHECKLIST_GROUPS.map((g) => (
+                  <fieldset key={g.title}>
+                    <legend className="text-xs font-semibold text-muted-foreground">
+                      {g.title}
+                    </legend>
+                    <ul className="mt-0.5">
+                      {g.items.map((i) => {
+                        const hint = CHECKLIST_HINTS[i];
+                        const aiText = hint.ai && da?.[hint.ai] ? AI_HINT_LABEL[hint.ai] : null;
+                        return (
+                          <li key={i} className="flex items-start gap-3">
+                            <Checkbox
+                              id={`chk-${i}`}
+                              checked={checked[i]}
+                              onCheckedChange={() => toggle(i)}
+                              aria-describedby={`chk-${i}-hint`}
+                              className="mt-2 print:hidden"
+                            />
+                            <span className="mt-1.5 hidden h-4 w-4 shrink-0 rounded-sm border border-foreground print:inline-block" />
+                            <div className="flex-1 py-1">
+                              <label
+                                htmlFor={`chk-${i}`}
+                                className={cn(
+                                  "block cursor-pointer text-sm leading-5.5",
+                                  checked[i] &&
+                                    "text-muted-foreground line-through print:text-foreground print:no-underline",
+                                )}
+                              >
+                                {CHECKLIST_ITEMS[i]}
+                              </label>
+                              <p id={`chk-${i}-hint`} className="text-xs text-muted-foreground">
+                                {hint.slide}
+                                {aiText && <> · {aiText}</>}
+                              </p>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </fieldset>
+                ))}
+              </div>
+            </section>
+          </div>
         </div>
       </main>
     </div>

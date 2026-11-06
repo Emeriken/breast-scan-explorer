@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ExternalLink } from "lucide-react";
 import { PubDateDisplay } from "@/components/ArticleMeta";
@@ -44,12 +45,15 @@ export function ArticleRow({
   listSearch,
   showNew,
   low,
+  action,
 }: {
   article: Article;
   query: ParsedQuery | null;
   listSearch: ArticleSearch;
   showNew?: boolean;
   low?: boolean;
+  /** Knapp under raden, t.ex. "Förbered presentation" i Journal club */
+  action?: ReactNode;
 }) {
   const pmid = a.pmid ?? pmidFromUrl(a.url);
   const titleClass = cn(
@@ -110,6 +114,7 @@ export function ArticleRow({
           </p>
         )}
         <RegulatoryBadges reg={a.regulatory} className="mt-1.5" />
+        {action && <div className="mt-2.5">{action}</div>}
       </div>
       <a
         href={pubmedUrl({ pmid: pmid ?? undefined, url: a.url })}
@@ -134,12 +139,14 @@ export function ArticleRows({
   listSearch,
   showNew,
   low,
+  action,
 }: {
   items: Article[];
   query: ParsedQuery | null;
   listSearch: ArticleSearch;
   showNew?: (a: Article) => boolean;
   low?: boolean;
+  action?: (a: Article) => ReactNode;
 }) {
   if (items.length === 0) return null;
   return (
@@ -152,6 +159,7 @@ export function ArticleRows({
           listSearch={listSearch}
           showNew={showNew?.(a)}
           low={low}
+          action={action?.(a)}
         />
       ))}
     </ol>
