@@ -12,7 +12,7 @@ export type SortKey = (typeof SORT_KEYS)[number];
 export const DEFAULT_SORT: SortKey = "scored_at";
 
 export const SORT_LABELS: Record<SortKey, string> = {
-  scored_at: "Senast tillagd",
+  scored_at: "Veckovis",
   pub_date: "Publiceringsdatum",
   score: "Högst AI-relevans",
   journal: "Tidskrift (A–Ö)",

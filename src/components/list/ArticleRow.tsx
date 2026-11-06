@@ -3,7 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { PubDateDisplay } from "@/components/ArticleMeta";
 import { Highlight } from "@/components/Highlight";
 import { JournalBadge } from "@/components/JournalBadge";
-import { NewBadge, NoticeBadge } from "@/components/Labels";
+import { AiTag, NewBadge, NoticeBadge } from "@/components/Labels";
 import { RegulatoryBadges } from "@/components/RegulatoryBadges";
 import { ScoreBadge } from "@/components/Score";
 import { listContext, type ArticleSearch } from "@/lib/article-search";
@@ -97,6 +97,18 @@ export function ArticleRow({
             </>
           )}
         </p>
+        {!low && a.why_relevant && (
+          <p
+            className={cn(
+              "mt-1.5 max-w-[62ch] text-meta text-ink-2",
+              // Vid sökning visas hela texten, så att träffar inte göms
+              !query && "line-clamp-2",
+            )}
+          >
+            <AiTag static className="mr-1.5 align-[1px]" />
+            <Highlight text={a.why_relevant} query={query} />
+          </p>
+        )}
         <RegulatoryBadges reg={a.regulatory} className="mt-1.5" />
       </div>
       <a

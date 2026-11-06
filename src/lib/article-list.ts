@@ -124,7 +124,7 @@ export function listArticles(
 
 export type Batch = { key: string; items: Article[] };
 
-/** Delar en lista sorterad på "Senast tillagd" i veckor, i samma ordning. */
+/** Delar en lista sorterad veckovis (standardsorteringen) i veckor, i samma ordning. */
 export function groupByBatch(list: Article[]): Batch[] {
   const out: Batch[] = [];
   for (const a of list) {
