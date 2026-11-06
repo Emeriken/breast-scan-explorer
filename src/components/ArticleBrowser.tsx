@@ -8,6 +8,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { Legend } from "@/components/Legend";
 import { ArticleCard } from "@/components/list/ArticleCard";
 import { ArticleRows, RowHeader } from "@/components/list/ArticleRow";
+import { TIER_BAND_CLASS, TierHeading, groupByScore } from "@/components/list/TierHeading";
 import { LowRelevanceRows } from "@/components/list/LowRelevanceRows";
 import { StatusBar } from "@/components/list/StatusBar";
 import { Toolbar } from "@/components/list/Toolbar";
@@ -91,12 +92,19 @@ function BatchHeader({
         </button>
       </h2>
       <p className="ml-6 text-meta text-muted-foreground sm:ml-0">
-        {week && day && <span className="whitespace-nowrap sm:hidden">Tillagda {day} · </span>}
+        {week && day && (
+          <>
+            <span className="whitespace-nowrap sm:hidden">Tillagda {day} ·</span>{" "}
+          </>
+        )}
         <span className="whitespace-nowrap">
           {batch.items.length} {batch.items.length === 1 ? "artikel" : "artiklar"}
         </span>
         {showTop && top > 0 && (
-          <span className="whitespace-nowrap"> · {top} med AI-relevans 4–5</span>
+          <>
+            {" "}
+            <span className="whitespace-nowrap">· {top} med AI-relevans 4–5</span>
+          </>
         )}
       </p>
     </div>
@@ -211,7 +219,10 @@ export function ArticleBrowser() {
   const [view, setView] = useListView();
 
   const isNew = (a: Article) => !grouped && latest !== null && batchOf(a) === latest;
-  const renderCard = (a: Article, opts: { heading: 2 | 3 }) => (
+  // Inom varje vecka: en rubrik per AI-relevans. Inte vid sökning, där
+  // ordningen inte längre är högst AI-relevans först.
+  const tiered = grouped && !query;
+  const renderCard = (a: Article, opts: { heading: 2 | 3 | 4 }) => (
     <ArticleCard
       key={articleId(a)}
       article={a}
@@ -219,6 +230,7 @@ export function ArticleBrowser() {
       listSearch={search}
       showNew={isNew(a)}
       headingLevel={opts.heading}
+      showRubric={!tiered}
     />
   );
 
@@ -380,14 +392,35 @@ export function ArticleBrowser() {
                     {!isCollapsed &&
                       (view === "lista" ? (
                         <div className="overflow-hidden rounded-md border border-border bg-card">
-                          <RowHeader />
-                          <ArticleRows items={main} query={query} listSearch={search} />
+                          {tiered ? (
+                            groupByScore(main).map((t) => (
+                              <div key={t.score}>
+                                <TierHeading tier={t} as="div" className={TIER_BAND_CLASS} />
+                                <ArticleRows items={t.items} query={query} listSearch={search} />
+                              </div>
+                            ))
+                          ) : (
+                            <>
+                              <RowHeader />
+                              <ArticleRows items={main} query={query} listSearch={search} />
+                            </>
+                          )}
                           <LowRelevanceRows
                             variant="inline"
                             items={low}
                             query={query}
                             listSearch={search}
                           />
+                        </div>
+                      ) : tiered ? (
+                        <div className="flex flex-col gap-7">
+                          {groupByScore(main).map((t) => (
+                            <div key={t.score} className="flex flex-col gap-3">
+                              <TierHeading tier={t} />
+                              {t.items.map((a) => renderCard(a, { heading: 4 }))}
+                            </div>
+                          ))}
+                          <LowRelevanceRows items={low} query={query} listSearch={search} />
                         </div>
                       ) : (
                         <div className="flex flex-col gap-3">

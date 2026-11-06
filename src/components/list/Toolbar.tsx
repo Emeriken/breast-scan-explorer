@@ -33,6 +33,7 @@ import {
 } from "@/lib/article-search";
 import { formatDay } from "@/lib/articles";
 import { CATEGORY_DESCRIPTIONS } from "@/lib/categories";
+import { SEARCHED_FIELDS } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import type { FilterChip } from "./filterChips";
 
@@ -326,8 +327,9 @@ export function Toolbar({
             autoComplete="off"
             value={queryInput}
             onChange={(e) => setQueryInput(e.target.value)}
-            placeholder="Sök titel, författare, läkemedel, MeSH, PMID"
+            placeholder="Sök titel, läkemedel…"
             aria-label="Sök bland artiklarna"
+            title={`Söker i ${SEARCHED_FIELDS}`}
             aria-describedby="search-help"
             className="h-11 rounded-md pl-9 pr-11 focus-visible:border-foreground/40 sm:h-9"
           />

@@ -16,7 +16,9 @@ export function ErrorState({
   className?: string;
 }) {
   const [busy, setBusy] = useState(false);
-  const message = error instanceof Error ? error.message : String(error ?? "");
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  // Webbläsarens engelska nätverksfel ("Failed to fetch") säger inget mer än raden nedan
+  const message = /failed to fetch|networkerror|load failed/i.test(raw) ? "" : raw;
   return (
     <div
       role="alert"

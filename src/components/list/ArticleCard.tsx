@@ -61,6 +61,7 @@ export function ArticleCard({
   showNew,
   headingLevel = 3,
   meshMerge = true,
+  showRubric = true,
   actions,
 }: {
   article: Article;
@@ -68,7 +69,9 @@ export function ArticleCard({
   /** Listans filter, följer med till artikelsidan för Föregående/Nästa */
   listSearch: ArticleSearch;
   showNew?: boolean;
-  headingLevel?: 2 | 3;
+  headingLevel?: 2 | 3 | 4;
+  /** Skalans text på kortet. Av när listan redan har en rubrik per AI-relevans. */
+  showRubric?: boolean;
   /** MeSH-länkarna läggs till listans filter (annars ersätter de dem) */
   meshMerge?: boolean;
   /** Knappar sist på kortet, t.ex. "Förbered presentation" i Journal club */
@@ -80,11 +83,11 @@ export function ArticleCard({
   const deep = hasDeepAnalysis(da);
   const authors = authorLine(article.authors, article.author_count);
   const pmid = article.pmid ?? pmidFromUrl(article.url);
-  const Heading = headingLevel === 2 ? "h2" : "h3";
+  const Heading = `h${headingLevel}` as "h2" | "h3" | "h4";
   const titleClass = "text-foreground underline-offset-2 hover:underline";
   // Skalans text, ordagrant, för de artiklar som lyfts fram (4–5)
   const score = roundScore(article.relevance_score);
-  const rubric = score >= 4 ? RUBRIC.find((r) => r.score === score)?.text : undefined;
+  const rubric = showRubric && score >= 4 ? RUBRIC.find((r) => r.score === score)?.text : undefined;
 
   return (
     <article className="flex flex-col gap-2 rounded-md border border-border bg-card px-4 pb-3.5 pt-4 sm:px-5 sm:pb-4 sm:pt-4.5">
@@ -169,7 +172,7 @@ export function ArticleCard({
       {(article.why_relevant || deep) && (
         <div className="mt-1 flex flex-col gap-1.5 border-t border-dashed border-input pt-3">
           {article.why_relevant && (
-            <p className="max-w-[82ch] text-sm leading-5.5 text-ink-2">
+            <p className="max-w-[68ch] text-sm leading-5.5 text-ink-2">
               <AiTag className="mr-1.5" />
               <span className="font-semibold text-foreground">Motivering:</span>{" "}
               <Highlight text={article.why_relevant} query={query} />
