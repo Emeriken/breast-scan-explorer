@@ -49,6 +49,17 @@ export function filterChips(
       label: search.period === "month" ? "Tillagd denna månad" : "Tillagd senaste 30 dagarna",
       clear: () => update({ period: undefined }),
     });
+  if (search.added) {
+    const [y, m] = search.added.split("-").map(Number);
+    const month = new Intl.DateTimeFormat("sv-SE", { month: "long", year: "numeric" }).format(
+      new Date(y, m - 1, 1),
+    );
+    chips.push({
+      key: "added",
+      label: `Tillagd ${month}`,
+      clear: () => update({ added: undefined }),
+    });
+  }
   if (search.level)
     chips.push({
       key: "level",

@@ -36,6 +36,12 @@ export const articleSearchSchema = z.object({
     .catch(undefined),
   /** Exakt AI-relevans 1–5 (från Statistik) */
   score: z.coerce.number().int().min(1).max(5).optional().catch(undefined),
+  /** Tillagd under en viss månad, "ÅÅÅÅ-MM" (från Statistik) */
+  added: z
+    .string()
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+    .optional()
+    .catch(undefined),
   /** Tillagd: innevarande månad eller senaste 30 dagarna */
   period: z.enum(["month", "30d"]).optional().catch(undefined),
   /** Lägsta KI-JL-nivå: 2 = L2–L3, 3 = bara L3 */
@@ -71,6 +77,7 @@ export function hasActiveFilters(s: ArticleSearch): boolean {
     s.min ||
     s.score ||
     s.period ||
+    s.added ||
     s.level ||
     s.lvl ||
     s.nya,

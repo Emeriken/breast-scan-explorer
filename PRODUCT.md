@@ -29,7 +29,7 @@ A watch built for one department: articles scored for relevance to breast cancer
 ## Operating Context
 
 - **Data:** a separate pipeline (`Emeriken/pubmed-bevaknng`) runs every Monday, scores new PubMed articles and publishes `public-index.json` to `Emeriken/brostcancer-publik`. This app reads that file (`DATA_URL` in `src/lib/articles.ts`). There is no backend database.
-- **Journals tracked:** about 20 high-impact general and oncology journals (NEJM, Lancet, JAMA, BMJ, JCO, Lancet Oncol, JAMA Oncol, Nat Med, Ann Oncol and others; see `src/lib/journals.ts`).
+- **Journals tracked:** 34 high-impact general, oncology and breast cancer journals (NEJM, Lancet, JAMA, BMJ, JCO, Lancet Oncol, JAMA Oncol, Nat Med, Ann Oncol and others; see `src/lib/journals.ts`).
 - **Journal club ritual:** once a month a clinician presents an article. The checklist covers PICO, primary result (HR, CI, p-value), secondary endpoints and subgroups, and clinical implications for SÖS patients.
 - **Other outlets:** an RSS feed (`/api/feed`) and an MCP endpoint (`/mcp`) expose the same data.
 

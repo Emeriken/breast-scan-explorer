@@ -83,6 +83,7 @@ export function filterArticles(
       if (search.period === "month" && added < monthStart) return false;
       if (search.period === "30d" && added < last30Start) return false;
     }
+    if (search.added && !batchOf(a).startsWith(search.added)) return false;
     if (search.nya && (!latest || batchOf(a) !== latest)) return false;
     if (mesh) {
       const terms = (a.mesh_terms ?? []).map((t) => t.replace(/\*$/, "").trim().toLowerCase());
