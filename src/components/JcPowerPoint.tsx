@@ -9,6 +9,7 @@ import { Segmented } from "@/components/Segmented";
 import type { Article } from "@/lib/articles";
 import { buildDeck, deckFileName, fetchAbstract } from "@/lib/jc-pptx";
 import { pmidFromUrl } from "@/lib/journals";
+import type { PdfDeckSource } from "@/components/PdfImport";
 
 const NAME_KEY = "brostcancer:presentator";
 
@@ -23,7 +24,19 @@ const AREAS = [
  * uppgifterna från PubMed och rutor att fylla i; AI-texterna och abstractet
  * hamnar i talarens anteckningar.
  */
-export function JcPowerPoint({ article, area }: { article: Article; area: string }) {
+export function JcPowerPoint({
+  article,
+  area,
+  pdf,
+  pdfSummary,
+}: {
+  article: Article;
+  area: string;
+  /** Val ur artikelns PDF, om en PDF är inläst */
+  pdf?: PdfDeckSource | null;
+  /** Kort beskrivning av valen, t.ex. "2 effektmått · 1 figur" */
+  pdfSummary?: string | null;
+}) {
   const [name, setName] = useState("");
   // Tomt tills presentatören väljer: datumet står på titelbilden och i filnamnet
   const [date, setDate] = useState("");
@@ -58,12 +71,13 @@ export function JcPowerPoint({ article, area }: { article: Article; area: string
         // Lagring blockerad: namnet gäller bara den här gången
       }
       const pmid = article.pmid ?? pmidFromUrl(article.url);
-      const [template, abstract] = await Promise.all([
+      const [template, abstract, pdfContent] = await Promise.all([
         fetch(mallUrl).then((r) => {
           if (!r.ok) throw new Error("mall");
           return r.arrayBuffer();
         }),
         pmid ? fetchAbstract(pmid) : Promise.resolve(null),
+        pdf ? pdf() : Promise.resolve(undefined),
       ]);
       const bytes = await buildDeck(template, {
         article,
@@ -72,6 +86,7 @@ export function JcPowerPoint({ article, area }: { article: Article; area: string
         date,
         abstract,
         rubric: RUBRIC.find((r) => r.score === roundScore(article.relevance_score))?.text,
+        pdf: pdfContent,
       });
       const url = URL.createObjectURL(
         new Blob([bytes], {
@@ -151,6 +166,12 @@ export function JcPowerPoint({ article, area }: { article: Article; area: string
               : "Står på titelbilden och i filnamnet."}
           </p>
         </div>
+        {pdfSummary && (
+          <p className="text-meta text-ink-2">
+            <span className="text-muted-foreground">Ur artikelns PDF: </span>
+            {pdfSummary}
+          </p>
+        )}
         <Button onClick={create} disabled={busy} className="self-start">
           {busy ? (
             <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
