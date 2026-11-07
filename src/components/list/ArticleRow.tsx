@@ -115,7 +115,7 @@ export function ArticleRow({
           </p>
         )}
         <RegulatoryBadges reg={a.regulatory} className="mt-1.5" />
-        {!low && <TrialChips trials={a.trials} className="mt-1.5" />}
+        {!low && <TrialChips trials={a.trials} isrctn={a.isrctn_ids} className="mt-1.5" />}
         {action && <div className="mt-2.5">{action}</div>}
       </div>
       <a

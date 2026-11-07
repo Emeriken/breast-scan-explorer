@@ -29,10 +29,15 @@ export type Trial = {
   has_results?: boolean;
 };
 
-/** Studierna som hör till en artikel, och när registret lästes. */
-export type ArticleTrials = { studies: Trial[]; checkedAt?: string };
+/** Var NCT-numret hittades: PubMed-posten, förlaget (Crossref) eller artikelns metoddel (Europe PMC). */
+export type TrialSource = "pubmed" | "crossref" | "europepmc";
 
-type ArticleLike = { trial_ids?: unknown; trials?: ArticleTrials };
+/** Studierna som hör till en artikel, när registret lästes och var numret hittades. */
+export type ArticleTrials = { studies: Trial[]; checkedAt?: string; source?: TrialSource };
+
+type ArticleLike = { trial_ids?: unknown; trial_source?: unknown; trials?: ArticleTrials };
+
+const SOURCES: TrialSource[] = ["pubmed", "crossref", "europepmc"];
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -50,7 +55,8 @@ export function attachTrials<T extends ArticleLike>(articles: T[], raw: unknown)
         const s = typeof id === "string" ? studies[id] : undefined;
         if (isObj(s) && typeof s.nct === "string") list.push(s as Trial);
       }
-      if (list.length) a.trials = { studies: list, checkedAt };
+      const source = SOURCES.find((s) => s === a.trial_source);
+      if (list.length) a.trials = { studies: list, checkedAt, source };
     }
   } catch {
     // Inga studier hellre än en trasig sida.
@@ -58,6 +64,70 @@ export function attachTrials<T extends ArticleLike>(articles: T[], raw: unknown)
 }
 
 export const trialUrl = (nct: string) => `https://clinicaltrials.gov/study/${nct}`;
+export const isrctnUrl = (id: string) => `https://www.isrctn.com/${id}`;
+
+/** Varifrån numret kom, som en mening. */
+export const SOURCE_TEXT: Record<TrialSource, string> = {
+  pubmed: "Numret står i PubMed-posten.",
+  crossref: "Numret är anmält av förlaget (Crossref).",
+  europepmc: "Numret står i artikelns metoddel (Europe PMC).",
+};
+
+/** ISRCTN-nummer från pipelinen, bara giltiga. */
+export function isrctnIds(raw: unknown): string[] {
+  return Array.isArray(raw)
+    ? raw.filter((x): x is string => typeof x === "string" && /^ISRCTN\d{8}$/.test(x))
+    : [];
+}
+
+type TrialLikeArticle = {
+  title: string;
+  publication_types?: string[];
+  regulatory?: { substances: { name: string }[] };
+};
+
+/**
+ * true för artiklar som ser ut att rapportera en egen studie (publikationstyp
+ * eller titel), men inte översikter, riktlinjer, brev och kommentarer.
+ */
+export function looksLikeTrial(a: TrialLikeArticle): boolean {
+  const types = (a.publication_types ?? []).join(" ");
+  if (/Review|Guideline|Letter|Comment|Editorial|Erratum|Correction/i.test(types)) return false;
+  return (
+    /Trial/i.test(types) ||
+    /\b(phase\s*(I{1,3}|[1-3])(\/(I{1,3}|[1-3]))?|randomi[sz]ed|trial)\b/i.test(a.title)
+  );
+}
+
+/**
+ * Sökord för ClinicalTrials.gov när artikeln saknar studienummer: början av
+ * titeln fram till "versus", "plus" och liknande, utan inledande fraser som
+ * "Efficacy and safety of". Användaren kontrollerar själv träffarna.
+ */
+export function trialSearchTerm(a: TrialLikeArticle): string | undefined {
+  let t = a.title.replace(/\s+/g, " ").trim();
+  t = t.replace(
+    /^(a |an |the )?((randomi[sz]ed|open-label|multicenter|multicentre|double-blind|phase\s*\S+)\s+)*(trial|study) of /i,
+    "",
+  );
+  t = t.replace(
+    /^(efficacy|safety|efficacy and safety|final (results|analysis)|results|outcomes?) of /i,
+    "",
+  );
+  const head = t.split(/\s(?:versus|vs\.?|plus|compared|with|in|for|as|after|among|:)\s/i)[0];
+  const words = head
+    .replace(/[():,]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 5);
+  const term = words.join(" ");
+  if (term.length >= 4) return term;
+  return a.regulatory?.substances[0]?.name;
+}
+
+/** Sökning i ClinicalTrials.gov på bröstcancer och sökordet. */
+export const trialSearchUrl = (term: string) =>
+  `https://clinicaltrials.gov/search?cond=${encodeURIComponent("Breast Cancer")}&term=${encodeURIComponent(term)}`;
 
 const STATUS: Record<string, string> = {
   NOT_YET_RECRUITING: "Har inte börjat rekrytera",

@@ -41,6 +41,10 @@ export type Article = {
   regulatory?: ArticleRegulatory;
   /** NCT-nummer som finns i ClinicalTrials.gov (från pipelinen) */
   trial_ids?: string[];
+  /** Varifrån NCT-numret kom: "pubmed", "crossref" eller "europepmc" */
+  trial_source?: string;
+  /** ISRCTN-nummer (brittiska studieregistret) i titel eller abstract */
+  isrctn_ids?: string[];
   /** Registrerade studier, kopplas på i fetchArticles */
   trials?: ArticleTrials;
 };
