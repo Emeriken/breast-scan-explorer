@@ -30,7 +30,7 @@ export type Trial = {
 };
 
 /** Var NCT-numret hittades: PubMed-posten, förlaget (Crossref) eller artikelns metoddel (Europe PMC). */
-export type TrialSource = "pubmed" | "crossref" | "europepmc";
+export type TrialSource = "pubmed" | "crossref" | "europepmc" | "pdf";
 
 /** Studierna som hör till en artikel, när registret lästes och var numret hittades. */
 export type ArticleTrials = { studies: Trial[]; checkedAt?: string; source?: TrialSource };
@@ -71,7 +71,74 @@ export const SOURCE_TEXT: Record<TrialSource, string> = {
   pubmed: "Numret står i PubMed-posten.",
   crossref: "Numret är anmält av förlaget (Crossref).",
   europepmc: "Numret står i artikelns metoddel (Europe PMC).",
+  pdf: "Numret står i artikelns PDF och valdes av presentatören.",
 };
+
+type Json = Record<string, unknown>;
+const get = (o: unknown, ...path: string[]): unknown =>
+  path.reduce<unknown>((v, k) => (isObj(v) ? v[k] : undefined), o);
+const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+
+/** Samma korta form som pipelinen sparar (scripts/trials.py, summarize). */
+export function summarizeStudy(study: unknown): Trial | null {
+  const ps = get(study, "protocolSection");
+  const nct = str(get(ps, "identificationModule", "nctId"));
+  if (!nct) return null;
+  const phases = get(ps, "designModule", "phases");
+  const arms = get(ps, "armsInterventionsModule", "armGroups");
+  const outcomes = get(ps, "outcomesModule", "primaryOutcomes");
+  const count = get(ps, "designModule", "enrollmentInfo", "count");
+  return {
+    nct,
+    title: str(get(ps, "identificationModule", "briefTitle")),
+    acronym: str(get(ps, "identificationModule", "acronym")),
+    status: str(get(ps, "statusModule", "overallStatus")),
+    start: str(get(ps, "statusModule", "startDateStruct", "date")),
+    primary_completion: str(get(ps, "statusModule", "primaryCompletionDateStruct", "date")),
+    sponsor: str(get(ps, "sponsorCollaboratorsModule", "leadSponsor", "name")),
+    study_type: str(get(ps, "designModule", "studyType")),
+    phases: Array.isArray(phases) ? phases.filter((x) => x !== "NA") : undefined,
+    allocation: str(get(ps, "designModule", "designInfo", "allocation")),
+    masking: str(get(ps, "designModule", "designInfo", "maskingInfo", "masking")),
+    enrollment: typeof count === "number" ? count : undefined,
+    enrollment_type: str(get(ps, "designModule", "enrollmentInfo", "type")),
+    arms: Array.isArray(arms)
+      ? (arms as Json[]).slice(0, 6).map((a) => ({
+          label: str(a.label),
+          type: str(a.type),
+          interventions: Array.isArray(a.interventionNames)
+            ? (a.interventionNames as unknown[]).filter((x): x is string => typeof x === "string")
+            : undefined,
+        }))
+      : undefined,
+    primary_outcomes: Array.isArray(outcomes)
+      ? (outcomes as Json[])
+          .slice(0, 3)
+          .map((o) => ({ measure: str(o.measure), time_frame: str(o.timeFrame) }))
+      : undefined,
+    has_results: Boolean(get(study, "hasResults")),
+  };
+}
+
+/** Hämta en studie direkt från ClinicalTrials.gov (API:t tillåter anrop från webbläsaren). */
+export async function fetchTrial(nct: string, timeoutMs = 8000): Promise<Trial | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(
+      `https://clinicaltrials.gov/api/v2/studies/${encodeURIComponent(nct)}`,
+      {
+        signal: ctrl.signal,
+      },
+    );
+    if (!res.ok) return null;
+    return summarizeStudy(await res.json());
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** ISRCTN-nummer från pipelinen, bara giltiga. */
 export function isrctnIds(raw: unknown): string[] {

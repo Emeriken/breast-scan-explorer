@@ -101,6 +101,20 @@ export class Zip {
     this.changed.set(name, new TextEncoder().encode(text));
   }
 
+  /** Lägg till en ny fil, t.ex. en bild. Lagras okomprimerad. */
+  add(name: string, bytes: Uint8Array) {
+    if (this.entries.some((e) => e.name === name)) throw new Error(`Finns redan: ${name}`);
+    this.entries.push({
+      name,
+      method: 0,
+      crc: 0,
+      compressedSize: bytes.length,
+      size: bytes.length,
+      data: bytes,
+    });
+    this.changed.set(name, bytes);
+  }
+
   /** Bygg den nya filen. Ändrade filer lagras okomprimerade. */
   toBytes(): Uint8Array<ArrayBuffer> {
     const enc = new TextEncoder();
