@@ -6,7 +6,7 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { z } from "zod";
 import {
   ArrowLeft,
@@ -25,6 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { AiSections, ArticleHeading, ArticleLinks } from "@/components/ArticleParts";
 import { ErrorState } from "@/components/ErrorState";
 import { JcPowerPoint } from "@/components/JcPowerPoint";
+import { PdfImport, type PdfDeckSource } from "@/components/PdfImport";
 import { DisclaimerFooter } from "@/components/Footer";
 import { ArticleRows } from "@/components/list/ArticleRow";
 import { TIER_BAND_CLASS, TierHeading, groupByScore } from "@/components/list/TierHeading";
@@ -758,6 +759,15 @@ function PrepareView({
   // innehåller avsnittet bara en sökning, och länken säger det.
   const hasRegisteredTrial =
     Boolean(article.trials?.studies.length) || isrctnIds(article.isrctn_ids).length > 0;
+  // Val ur artikelns PDF (läses lokalt i webbläsaren)
+  const [pdf, setPdf] = useState<{ source: PdfDeckSource | null; summary: string | null }>({
+    source: null,
+    summary: null,
+  });
+  const onPdfChange = useCallback(
+    (source: PdfDeckSource | null, summary: string | null) => setPdf({ source, summary }),
+    [],
+  );
   const hasTrial = hasRegisteredTrial || looksLikeTrial(article);
 
   return (
@@ -817,7 +827,8 @@ function PrepareView({
           </article>
 
           <div className="flex flex-col gap-4 print:mt-8">
-            <JcPowerPoint article={article} area={area} />
+            <PdfImport article={article} onChange={onPdfChange} />
+            <JcPowerPoint article={article} area={area} pdf={pdf.source} pdfSummary={pdf.summary} />
 
             <section className="rounded-md border border-border bg-card px-5 py-5 sm:px-6 print:rounded-none print:border-0 print:p-0">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
