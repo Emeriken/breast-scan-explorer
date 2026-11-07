@@ -30,6 +30,7 @@ import { ArticleRows } from "@/components/list/ArticleRow";
 import { TIER_BAND_CLASS, TierHeading, groupByScore } from "@/components/list/TierHeading";
 import { RegulatorySection, hasIndications } from "@/components/RegulatoryBadges";
 import { Segmented } from "@/components/Segmented";
+import { TrialSection } from "@/components/TrialStudy";
 import { articlesQueryOptions, PRODUCT_NAME, type Article } from "@/lib/articles";
 import { pmidFromUrl, parsePubDateToMonth } from "@/lib/journals";
 import { noticeFor } from "@/lib/notices";
@@ -659,11 +660,16 @@ const CHECKLIST_ITEMS = [
 ];
 
 /** Vilken bild i presentationen punkten hör till, och var AI-texten kan hjälpa. */
-const CHECKLIST_HINTS: { slide: string; ai?: "central_finding" | "limitation" }[] = [
+const CHECKLIST_HINTS: {
+  slide: string;
+  ai?: "central_finding" | "limitation";
+  /** Registrerad studie (ClinicalTrials.gov) hjälper här */
+  registry?: boolean;
+}[] = [
   { slide: "Bild 2" },
-  { slide: "Bild 2–3" },
-  { slide: "Bild 3" },
-  { slide: "Bild 4", ai: "central_finding" },
+  { slide: "Bild 2–3", registry: true },
+  { slide: "Bild 3", registry: true },
+  { slide: "Bild 4", ai: "central_finding", registry: true },
   { slide: "Bild 4" },
   { slide: "Bild 4" },
   { slide: "Bild 6", ai: "limitation" },
@@ -747,6 +753,7 @@ function PrepareView({
   const done = checked.filter(Boolean).length;
   const allDone = done === CHECKLIST_ITEMS.length;
   const da = article.deep_analysis;
+  const hasTrial = Boolean(article.trials?.studies.length);
 
   return (
     <div className="min-h-screen bg-background">
@@ -792,6 +799,11 @@ function PrepareView({
             <ArticleHeading article={article} doiInline />
             <ArticleLinks article={article} className="mt-4.5 print:hidden" />
             <AiSections article={article} />
+            <TrialSection
+              id="studie"
+              trials={article.trials}
+              className="mt-7 border-t border-border pt-6"
+            />
             <RegulatorySection
               reg={article.regulatory}
               printIndications={printIndications}
@@ -891,6 +903,17 @@ function PrepareView({
                               </label>
                               <p id={`chk-${i}-hint`} className="text-xs text-muted-foreground">
                                 {hint.slide}
+                                {hint.registry && hasTrial && (
+                                  <>
+                                    {" · "}
+                                    <a
+                                      href="#studie"
+                                      className="underline underline-offset-2 hover:text-foreground"
+                                    >
+                                      Se registrerad studie
+                                    </a>
+                                  </>
+                                )}
                                 {aiText && <> · {aiText}</>}
                               </p>
                             </div>

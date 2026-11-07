@@ -7,6 +7,7 @@ import { JournalBadge } from "@/components/JournalBadge";
 import { AiTag, NewBadge, NoticeBadge } from "@/components/Labels";
 import { RegulatoryBadges } from "@/components/RegulatoryBadges";
 import { ScoreBadge } from "@/components/Score";
+import { TrialChips } from "@/components/TrialStudy";
 import { listContext, type ArticleSearch } from "@/lib/article-search";
 import { articleId, pubmedUrl, type Article } from "@/lib/articles";
 import { externalLinkProps } from "@/lib/categories";
@@ -114,6 +115,7 @@ export function ArticleRow({
           </p>
         )}
         <RegulatoryBadges reg={a.regulatory} className="mt-1.5" />
+        {!low && <TrialChips trials={a.trials} className="mt-1.5" />}
         {action && <div className="mt-2.5">{action}</div>}
       </div>
       <a
