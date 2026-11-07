@@ -31,6 +31,7 @@ import { TIER_BAND_CLASS, TierHeading, groupByScore } from "@/components/list/Ti
 import { RegulatorySection, hasIndications } from "@/components/RegulatoryBadges";
 import { Segmented } from "@/components/Segmented";
 import { TrialSection } from "@/components/TrialStudy";
+import { isrctnIds, looksLikeTrial } from "@/lib/trials";
 import { articlesQueryOptions, PRODUCT_NAME, type Article } from "@/lib/articles";
 import { pmidFromUrl, parsePubDateToMonth } from "@/lib/journals";
 import { noticeFor } from "@/lib/notices";
@@ -753,7 +754,11 @@ function PrepareView({
   const done = checked.filter(Boolean).length;
   const allDone = done === CHECKLIST_ITEMS.length;
   const da = article.deep_analysis;
-  const hasTrial = Boolean(article.trials?.studies.length);
+  // Samma villkor som när avsnittet Registrerad studie visas. Utan nummer
+  // innehåller avsnittet bara en sökning, och länken säger det.
+  const hasRegisteredTrial =
+    Boolean(article.trials?.studies.length) || isrctnIds(article.isrctn_ids).length > 0;
+  const hasTrial = hasRegisteredTrial || looksLikeTrial(article);
 
   return (
     <div className="min-h-screen bg-background">
@@ -801,7 +806,7 @@ function PrepareView({
             <AiSections article={article} />
             <TrialSection
               id="studie"
-              trials={article.trials}
+              article={article}
               className="mt-7 border-t border-border pt-6"
             />
             <RegulatorySection
@@ -910,7 +915,9 @@ function PrepareView({
                                       href="#studie"
                                       className="underline underline-offset-2 hover:text-foreground"
                                     >
-                                      Se registrerad studie
+                                      {hasRegisteredTrial
+                                        ? "Se registrerad studie"
+                                        : "Sök registrerad studie"}
                                     </a>
                                   </>
                                 )}

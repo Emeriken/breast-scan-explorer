@@ -170,7 +170,7 @@ export function ArticleCard({
 
       <RegulatoryBadges reg={article.regulatory} />
 
-      <TrialChips trials={article.trials} />
+      <TrialChips trials={article.trials} isrctn={article.isrctn_ids} />
 
       {(article.why_relevant || deep) && (
         <div className="mt-1 flex flex-col gap-1.5 border-t border-dashed border-input pt-3">

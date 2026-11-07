@@ -225,7 +225,7 @@ function ArticleDetail() {
                 )}
               </div>
               <AiSections article={article} />
-              <TrialSection trials={article.trials} className="mt-7 border-t border-border pt-6" />
+              <TrialSection article={article} className="mt-7 border-t border-border pt-6" />
               <RegulatorySection
                 reg={article.regulatory}
                 className="mt-7 border-t border-border pt-6"
