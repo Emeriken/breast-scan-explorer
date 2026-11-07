@@ -13,6 +13,7 @@ import { AiSections, ArticleHeading, ArticleLinks, PubMedSection } from "@/compo
 import { ErrorState } from "@/components/ErrorState";
 import { DisclaimerFooter } from "@/components/Footer";
 import { RegulatorySection } from "@/components/RegulatoryBadges";
+import { TrialSection } from "@/components/TrialStudy";
 import { isTypingTarget } from "@/components/ShortcutsProvider";
 import { articleSearchSchema, hasActiveFilters, type ArticleSearch } from "@/lib/article-search";
 import { listArticles } from "@/lib/article-list";
@@ -224,6 +225,7 @@ function ArticleDetail() {
                 )}
               </div>
               <AiSections article={article} />
+              <TrialSection trials={article.trials} className="mt-7 border-t border-border pt-6" />
               <RegulatorySection
                 reg={article.regulatory}
                 className="mt-7 border-t border-border pt-6"

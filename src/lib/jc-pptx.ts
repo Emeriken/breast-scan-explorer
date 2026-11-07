@@ -1,6 +1,7 @@
 import type { Article } from "@/lib/articles";
 import { formatPubDate, pmidFromUrl } from "@/lib/journals";
 import { authorLine } from "@/lib/regulatory";
+import { trialNoteLines } from "@/lib/trials";
 import { Zip } from "@/lib/zip";
 
 /**
@@ -39,7 +40,13 @@ export type DeckInput = {
 };
 
 export type Design =
-  "rct" | "studie" | "observationell" | "metaanalys" | "oversikt" | "translationell" | "ovrig";
+  | "rct"
+  | "studie"
+  | "observationell"
+  | "metaanalys"
+  | "oversikt"
+  | "translationell"
+  | "ovrig";
 
 /** Studietyp utifrån PubMeds publikationstyper (och kategorin för translationell). */
 export function designOf(a: Pick<Article, "publication_types" | "category">): Design {
@@ -282,6 +289,9 @@ export function deckContent(input: DeckInput): Record<string, Value> {
   c.NOTES_3 = [
     { text: `Publikationstyp enligt PubMed: ${types.join(", ") || "saknas"}.` },
     { text: "Kontrollera designen i artikeln; PubMeds typning är ibland ofullständig." },
+    ...(a.trials?.studies.length
+      ? [{ text: "" }, ...trialNoteLines(a.trials).map((text) => ({ text }))]
+      : []),
   ];
   c.NOTES_4 = [
     {

@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { attachRegulatory, type ArticleRegulatory } from "@/lib/regulatory";
+import { attachTrials, type ArticleTrials } from "@/lib/trials";
 
 /** Datakällan som pipelinen (pubmed-bevaknng) publicerar varje måndag. */
 export const DATA_URL =
@@ -38,6 +39,10 @@ export type Article = {
   regulatory_substances?: string[];
   /** Validerad FDA/EMA-status, kopplas på i fetchArticles */
   regulatory?: ArticleRegulatory;
+  /** NCT-nummer som finns i ClinicalTrials.gov (från pipelinen) */
+  trial_ids?: string[];
+  /** Registrerade studier, kopplas på i fetchArticles */
+  trials?: ArticleTrials;
 };
 
 export type ApiResponse = {
@@ -47,13 +52,17 @@ export type ApiResponse = {
   categories?: string[];
   articles: Article[];
   regulatory_status?: unknown;
+  trials?: unknown;
 };
 
 export async function fetchArticles(): Promise<ApiResponse> {
   const res = await fetch(DATA_URL, { cache: "no-store" });
   if (!res.ok) throw new Error(`Kunde inte hämta data (HTTP ${res.status})`);
   const data = (await res.json()) as ApiResponse;
-  if (Array.isArray(data?.articles)) attachRegulatory(data.articles, data.regulatory_status);
+  if (Array.isArray(data?.articles)) {
+    attachRegulatory(data.articles, data.regulatory_status);
+    attachTrials(data.articles, data.trials);
+  }
   return data;
 }
 

@@ -8,6 +8,7 @@ import { JournalBadge } from "@/components/JournalBadge";
 import { AiTag, NewBadge, NoticeBadge } from "@/components/Labels";
 import { MeshTags } from "@/components/MeshTags";
 import { RegulatoryBadges } from "@/components/RegulatoryBadges";
+import { TrialChips } from "@/components/TrialStudy";
 import { RUBRIC, ScoreBadge, roundScore } from "@/components/Score";
 import { listContext, type ArticleSearch } from "@/lib/article-search";
 import { pubmedUrl, type Article } from "@/lib/articles";
@@ -168,6 +169,8 @@ export function ArticleCard({
       <MeshTags terms={article.mesh_terms} variant="card" merge={meshMerge} />
 
       <RegulatoryBadges reg={article.regulatory} />
+
+      <TrialChips trials={article.trials} />
 
       {(article.why_relevant || deep) && (
         <div className="mt-1 flex flex-col gap-1.5 border-t border-dashed border-input pt-3">
