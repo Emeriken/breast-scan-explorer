@@ -34,6 +34,8 @@ export const CATEGORY_DESCRIPTIONS: Record<string, string> = {
     "BRCA1/2, PALB2, andra hereditära syndrom, genetisk testning, riskreducerande kirurgi, PARP-hämmare (olaparib, talazoparib) när fokus är ärftlighet.",
   "Preklinisk/translationell":
     "In vitro, djurmodeller, molekylära mekanismer, biomarkörsupptäckt, organoider, tumörbiologi utan direkt klinisk implementering ännu.",
+  "Komplementär/integrativ onkologi":
+    "Komplementär, integrativ och alternativ medicin: t.ex. akupunktur och akupressur, yoga, tai chi och qigong, mindfulness och meditation, massage, Reiki, örtmedicin och växtextrakt, kosttillskott (t.ex. vitaminer), mistel, traditionell kinesisk medicin, homeopati, samt användning av och attityder till sådana metoder. Bara artiklar som annars hade hamnat i Övrigt.",
   Övrigt:
     "Allt annat (epidemiologi, screening, kirurgi, diagnostik/avbildning, palliativ vård, livskvalitet, riktlinjer som spänner över flera områden).",
 };
