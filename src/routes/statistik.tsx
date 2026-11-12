@@ -479,7 +479,7 @@ function StatistikPage() {
               <div className="flex flex-col gap-4">
                 <ChartCard title="Artiklar per kategori">
                   <BarList
-                    labelWidth="minmax(0,11rem)"
+                    labelWidth="minmax(0,14.5rem)"
                     rows={byCategory.map((d) => ({
                       key: d.name,
                       label: d.name,
