@@ -1,3 +1,4 @@
+import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -61,6 +62,7 @@ export function MultiSelect({
   onChange,
   fill,
   inline,
+  expand,
   descriptions,
 }: {
   label: string;
@@ -70,15 +72,59 @@ export function MultiSelect({
   fill?: boolean;
   /** Etiketten i knappen ("Kategori: Alla") i stället för ovanför */
   inline?: boolean;
+  /**
+   * Fäll ut listan på plats i stället för i en svävande ruta. Används i
+   * mobilens filterark: arket spärrar rullning utanför sig självt, så en
+   * svävande lista där går inte att rulla.
+   */
+  expand?: boolean;
   descriptions?: Record<string, string>;
 }) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
   const summary =
     selected.length === 0
       ? "Alla"
       : selected.length === 1
         ? selected[0]
         : `${selected.length} valda`;
-  const trigger = (
+  const clear = selected.length > 0 && (
+    <Button variant="ghost" size="sm" className="w-full" onClick={() => onChange([])}>
+      Rensa {label.toLowerCase()}
+    </Button>
+  );
+  const trigger = expand ? (
+    <div className="flex flex-col gap-1">
+      <Button
+        variant="outline"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        aria-label={`${label}: ${summary}`}
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "h-11 w-full justify-between gap-2 font-normal",
+          selected.length > 0 && "border-foreground/40",
+        )}
+      >
+        <span className="truncate">{summary}</span>
+        <ChevronDown
+          className={cn("h-4 w-4 shrink-0 opacity-60 transition-transform", open && "rotate-180")}
+        />
+      </Button>
+      {open && (
+        <div id={panelId} className="rounded-md border border-border bg-card">
+          <CheckboxList
+            className="p-1"
+            options={options}
+            selected={selected}
+            onChange={onChange}
+            descriptions={descriptions}
+          />
+          {clear && <div className="border-t p-2">{clear}</div>}
+        </div>
+      )}
+    </div>
+  ) : (
     <Popover>
       <PopoverTrigger asChild>
         <Button

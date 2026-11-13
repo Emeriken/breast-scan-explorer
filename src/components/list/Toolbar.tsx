@@ -239,6 +239,7 @@ function FilterSheet({
             fill
           />
           <MultiSelect
+            expand
             label="Kategori"
             options={categories}
             selected={search.cat ?? []}
@@ -247,6 +248,7 @@ function FilterSheet({
             fill
           />
           <MultiSelect
+            expand
             label="Tidskrift"
             options={journals}
             selected={search.journal ?? []}
