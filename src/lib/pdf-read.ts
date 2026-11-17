@@ -137,3 +137,50 @@ export function canvasPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {
     }, "image/png"),
   );
 }
+
+/**
+ * Antal mörka bildpunkter per rad (ljushet under 200 av 255). Ljusa
+ * bakgrundsfärger, som randade tabellrader, räknas inte som tryck. Inte
+ * heller lodräta linjer som går genom nästan hela bilden (en ram runt
+ * figuren): de skulle annars göra att ingen rad är tom.
+ */
+export function inkPerRow(canvas: HTMLCanvasElement): number[] {
+  const { width, height } = canvas;
+  const data = canvas.getContext("2d")!.getImageData(0, 0, width, height).data;
+  const dark = new Uint8Array(width * height);
+  for (let k = 0; k < width * height; k++) {
+    const i = k * 4;
+    if (data[i + 3] < 128) continue; // genomskinligt räknas som vitt
+    dark[k] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2] < 200 ? 1 : 0;
+  }
+  return inkProfile(dark, width, height);
+}
+
+/** Som inkPerRow, men på en färdig mask (1 = mörk bildpunkt). Testbar utan canvas. */
+export function inkProfile(dark: Uint8Array, width: number, height: number): number[] {
+  const col = new Array<number>(width).fill(0);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) col[x] += dark[y * width + x];
+  const frame = col.map((n) => n > height * 0.85);
+  const out = new Array<number>(height).fill(0);
+  for (let y = 0; y < height; y++) {
+    let n = 0;
+    for (let x = 0; x < width; x++) if (!frame[x]) n += dark[y * width + x];
+    out[y] = n;
+  }
+  return out;
+}
+
+/** Dela en canvas i bitar uppifrån och ned vid raderna i `cuts`. */
+export function sliceRows(canvas: HTMLCanvasElement, cuts: number[]): HTMLCanvasElement[] {
+  const edges = [0, ...cuts, canvas.height];
+  return edges.slice(1).map((end, i) => {
+    const start = edges[i];
+    const part = document.createElement("canvas");
+    part.width = canvas.width;
+    part.height = Math.max(1, end - start);
+    part
+      .getContext("2d")!
+      .drawImage(canvas, 0, start, canvas.width, part.height, 0, 0, canvas.width, part.height);
+    return part;
+  });
+}

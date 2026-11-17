@@ -480,20 +480,28 @@ export async function buildDeck(
 const SLIDE_CT = "application/vnd.openxmlformats-officedocument.presentationml.slide+xml";
 const REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
 const REL_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide";
-// Mallens figurbild (EMU, bilden är 9144000 × 5148263). Rubriken står i
-// mallens rubrikruta (en rad), bildtexten på en egen rad under den, och
-// figuren i ytan mellan bildtexten och källraden.
-const LEFT = 964800;
+// Mallens figurbild (EMU, bilden är 9144000 × 5148263). Figuren får nästan
+// hela bilden: en kort rubrik överst, bildtexten på en rad under den, figuren
+// i ytan under och källraden ovanför sidfoten (SÖS-loggan står nere till höger).
+const EMU_PER_IN = 914400;
+const LEFT = 457200;
 const WIDTH = 9144000 - 2 * LEFT;
-const CAPTION = { y: 1330000, h: 330000 };
-const AREA = { x: LEFT, y: 1720000, w: WIDTH, h: 2690000 };
-const SOURCE_Y = 4470000;
+const TITLE = { y: 260000, h: 460000 };
+const CAPTION = { y: 760000, h: 300000 };
+const AREA = { x: LEFT, y: 1110000, w: WIDTH, h: 3450000 };
+const SOURCE_Y = 4590000;
+
+/**
+ * Figurens yta på bilden i tum, med bildtext. Används för att räkna ut hur
+ * stor texten i figuren blir och om den behöver delas på flera bilder.
+ */
+export const FIGURE_AREA_IN = { w: AREA.w / EMU_PER_IN, h: AREA.h / EMU_PER_IN };
 
 /** En textruta utan ram, i grått. */
 function textBox(id: number, name: string, y: number, h: number, size: number, text: string) {
   return (
     `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${name}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>` +
-    `<p:spPr><a:xfrm><a:off x="${LEFT}" y="${y}"/><a:ext cx="${WIDTH}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>` +
+    `<p:spPr><a:xfrm><a:off x="${LEFT}" y="${y}"/><a:ext cx="${Math.round(WIDTH * 0.86)}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>` +
     `<p:txBody><a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" anchor="t"><a:normAutofit/></a:bodyPr><a:lstStyle/><a:p><a:r><a:rPr lang="sv-SE" sz="${size}"><a:solidFill><a:srgbClr val="7F7F7F"/></a:solidFill></a:rPr><a:t>${esc(text)}</a:t></a:r></a:p></p:txBody></p:sp>`
   );
 }
@@ -504,11 +512,16 @@ function figureXml(
   rid: string,
   source: string,
 ): string {
-  // Textytan tas bort: bilden står där i stället
-  const withoutBody = slide.replace(
-    /<p:sp>(?:(?!<\/p:sp>)[\s\S])*?<p:ph type="body" idx="1"\/>[\s\S]*?<\/p:sp>/,
-    "",
-  );
+  // Textytan tas bort: bilden står där i stället. Rubrikrutan flyttas upp och
+  // blir en rad i mindre storlek, så att figuren får plats.
+  const withoutBody = slide
+    .replace(/<p:sp>(?:(?!<\/p:sp>)[\s\S])*?<p:ph type="body" idx="1"\/>[\s\S]*?<\/p:sp>/, "")
+    .replace(
+      /(<p:sp>(?:(?!<\/p:sp>)[\s\S])*?<p:ph type="body" idx="14"[^>]*\/>[\s\S]*?)<p:spPr\/>([\s\S]*?<\/p:sp>)/,
+      (_, head: string, tail: string) =>
+        `${head}<p:spPr><a:xfrm><a:off x="${LEFT}" y="${TITLE.y}"/><a:ext cx="${WIDTH}" cy="${TITLE.h}"/></a:xfrm></p:spPr>` +
+        tail.replace(/<a:r>(<a:rPr[^>]*\/>)?/g, '<a:r><a:rPr lang="sv-SE" sz="2200"/>'),
+    );
   // Utan bildtext får figuren även bildtextens plats
   const top = fig.caption ? AREA.y : CAPTION.y;
   const room = AREA.y + AREA.h - top;
@@ -526,9 +539,9 @@ function figureXml(
     `<p:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
     `<p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:ln w="6350"><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill></a:ln></p:spPr></p:pic>`;
   const caption = fig.caption
-    ? textBox(952, "Bildtext", CAPTION.y, CAPTION.h, 1100, fig.caption)
+    ? textBox(952, "Bildtext", CAPTION.y, CAPTION.h, 1000, fig.caption)
     : "";
-  const src = textBox(951, "Källa", SOURCE_Y, 220000, 900, source);
+  const src = textBox(951, "Källa", SOURCE_Y, 170000, 800, source);
   return withoutBody.replace("</p:spTree>", caption + pic + src + "</p:spTree>");
 }
 
