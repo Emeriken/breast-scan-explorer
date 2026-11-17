@@ -280,7 +280,11 @@ export function findCaptions(pages: PdfPage[]): Caption[] {
       if (!m) return;
       let rest = m[4];
       for (let j = i + 1; j < ls.length && rest.length < 200; j++) rest += " " + ls[j].text;
-      rest = normalize(rest).replace(/\s+/g, " ").trim();
+      rest = normalize(rest)
+        .replace(/\s+/g, " ")
+        // Avstavning vid radbrytning: "ri- bociclib" → "ribociclib"
+        .replace(/(\p{Ll})- (\p{Ll})/gu, "$1$2")
+        .trim();
       // En bildtext börjar med versal efter numret (eller "|", ".", ":")
       if (!m[3] && !/^[A-Z]/.test(rest)) return;
       if (/^(shows?|summari[sz]es|lists|presents|and|or|in|of)\b/i.test(rest)) return;
@@ -357,8 +361,23 @@ export function suggestBox(page: PdfPage, cap: Caption): Box {
     let y1 = spansBoth
       ? Math.min(firstBodyAbove(left), firstBodyAbove(right))
       : firstBodyAbove(own);
-    // Ingen löptext i den andra spalten i samma höjd: figuren går över hela bredden
-    if (!spansBoth && !ls.some((l) => l.y > top + 1 && l.y < y1 && isBody(l, other))) {
+    // Ingen löptext i den andra spalten i samma höjd: figuren går över hela
+    // bredden. Utom när den spalten har en egen bildtext i ungefär samma höjd:
+    // då står två figurer bredvid varandra (t.ex. Fig. 2 och Fig. 3).
+    const captionBeside = ls.some(
+      (l) =>
+        l !== ls.find((x) => x.y === a.y && x.x0 === a.x) &&
+        l.x0 >= other[0] - 2 &&
+        l.x0 < other[1] &&
+        l.y > a.y - body * 6 &&
+        l.y < y1 &&
+        CAPTION_START.test(normalize(l.text).trim()),
+    );
+    if (
+      !spansBoth &&
+      !captionBeside &&
+      !ls.some((l) => l.y > top + 1 && l.y < y1 && isBody(l, other))
+    ) {
       cols = [minX, maxX];
       y1 = Math.min(y1, firstBodyAbove(other));
     }

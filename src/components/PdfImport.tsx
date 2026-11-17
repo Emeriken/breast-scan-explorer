@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { FileText, Loader2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -64,9 +64,12 @@ export function PdfImport({
   const [boxes, setBoxes] = useState<Record<string, Box>>({});
   const [useFunding, setUseFunding] = useState(true);
   const [useCoi, setUseCoi] = useState(true);
+  /** Vald studie; null = ingen studie i presentationen */
   const [nct, setNct] = useState<string | null>(null);
   const [trial, setTrial] = useState<Trial | null | "loading">(null);
-  const hasTrial = Boolean(article.trials?.studies.length);
+  const articleStudies = useMemo(() => article.trials?.studies ?? [], [article.trials]);
+  const hasTrial = articleStudies.length > 0;
+  const fromArticle = Boolean(nct && articleStudies.some((t) => t.nct === nct));
 
   const reset = useCallback(() => {
     setLoaded((prev) => {
@@ -98,9 +101,10 @@ export function PdfImport({
         Object.fromEntries(findings.captions.map((c) => [c.id, suggestBox(pages[c.page - 1], c)])),
       );
       setLoaded({ doc, pages, findings, fileName: file.name });
-      // Studienummer vid "registered" o.d. föreslås när artikeln saknar studie
+      // Förval: artikelns egen studie, annars numret vid "registered" o.d.
+      // Presentatören kan välja ett annat nummer eller ingen studie.
       const reg = findings.ncts.find((n) => n.registration);
-      if (!hasTrial && reg) setNct(reg.nct);
+      setNct(hasTrial ? articleStudies[0].nct : (reg?.nct ?? null));
       setOpen(true);
     } catch {
       setError("Kunde inte läsa PDF:en. Är den skyddad eller trasig?");
@@ -109,9 +113,9 @@ export function PdfImport({
     }
   };
 
-  // Hämta studien från registret när ett nummer väljs
+  // Hämta studien från registret när ett nummer ur PDF:en väljs
   useEffect(() => {
-    if (!nct) {
+    if (!nct || fromArticle) {
       setTrial(null);
       return;
     }
@@ -121,7 +125,7 @@ export function PdfImport({
     return () => {
       live = false;
     };
-  }, [nct]);
+  }, [nct, fromArticle]);
 
   // Meddela förälderns PowerPoint-del när valen ändras
   useEffect(() => {
@@ -141,18 +145,26 @@ export function PdfImport({
       useFunding && f.funding ? { text: f.funding.text, page: f.funding.page } : undefined;
     const coi = useCoi && f.coi ? { text: f.coi.text, page: f.coi.page } : undefined;
     const studyTrial = trial && trial !== "loading" ? trial : null;
+    // null: ingen studie. Artikelns studie behåller sin källa och sitt datum.
+    const trials =
+      nct === null
+        ? null
+        : fromArticle
+          ? { ...article.trials!, studies: articleStudies.filter((t) => t.nct === nct) }
+          : studyTrial
+            ? { studies: [studyTrial], checkedAt: new Date().toISOString(), source: "pdf" as const }
+            : null;
     const source: PdfDeckSource = async () => ({
       effects,
       funding,
       coi,
-      trials: studyTrial
-        ? { studies: [studyTrial], checkedAt: new Date().toISOString(), source: "pdf" }
-        : undefined,
+      trials,
       figures: await Promise.all(
         chosen.map(async ({ cap, box }) => {
           const canvas = await renderPage(loaded.doc, cap.page, { scale: 3, box });
           return {
-            title: `${captionName(cap)}: ${shorten(cap.text, 70)}`,
+            title: captionName(cap),
+            caption: shorten(cap.text, 200),
             label: captionName(cap).toLowerCase(),
             png: await canvasPng(canvas),
             width: canvas.width,
@@ -165,11 +177,24 @@ export function PdfImport({
       effects.length && `${effects.length} effektmått`,
       chosen.length &&
         `${chosen.length} ${chosen.length === 1 ? "figur eller tabell" : "figurer och tabeller"}`,
-      studyTrial && studyTrial.nct,
+      trials?.studies[0]?.nct,
       (funding || coi) && "finansiering och jäv",
     ].filter(Boolean);
     onChange(source, parts.length ? parts.join(" · ") : null);
-  }, [loaded, rows, figures, boxes, useFunding, useCoi, trial, onChange]);
+  }, [
+    loaded,
+    rows,
+    figures,
+    boxes,
+    useFunding,
+    useCoi,
+    nct,
+    fromArticle,
+    trial,
+    article.trials,
+    articleStudies,
+    onChange,
+  ]);
 
   const f = loaded?.findings;
 
@@ -266,13 +291,11 @@ export function PdfImport({
               </dd>
               <dt className="text-muted-foreground">Studie</dt>
               <dd className="truncate text-ink-2">
-                {hasTrial
-                  ? "finns redan för artikeln"
-                  : nct
-                    ? `${nct} ur PDF:en`
-                    : f.ncts.length
-                      ? "inget valt"
-                      : "inget nummer hittades"}
+                {nct
+                  ? `${nct} ${fromArticle ? "från ClinicalTrials.gov" : "ur PDF:en"}`
+                  : hasTrial || f.ncts.length
+                    ? "ingen studie med"
+                    : "inget nummer hittades"}
               </dd>
               <dt className="text-muted-foreground">Finansiering, jäv</dt>
               <dd className="text-ink-2">
@@ -330,8 +353,7 @@ export function PdfImport({
               <TabsContent value="study" className="mt-4">
                 <StudyTab
                   findings={f}
-                  hasTrial={hasTrial}
-                  articleTrials={article.trials?.studies.map((t) => t.nct) ?? []}
+                  articleStudies={articleStudies}
                   nct={nct}
                   setNct={setNct}
                   trial={trial}
@@ -533,6 +555,14 @@ function FiguresTab({
                   <span className="font-semibold text-foreground">{captionName(c)}</span>
                   <span className="text-muted-foreground"> · sidan {c.page}</span>
                   <span className="mt-0.5 line-clamp-2 block">{c.text}</span>
+                  {(() => {
+                    const twin = captions.find((o) => o.id !== c.id && o.text === c.text);
+                    return twin && captions.indexOf(twin) < captions.indexOf(c) ? (
+                      <span className="mt-1 block text-xs font-medium text-warn">
+                        Samma bildtext som {captionName(twin).toLowerCase()}. Kontrollera rutan.
+                      </span>
+                    ) : null;
+                  })()}
                 </p>
                 <div className="mt-auto flex items-center justify-between gap-2">
                   <label className="flex cursor-pointer items-center gap-2 text-meta">
@@ -696,8 +726,7 @@ function CropEditor({
 
 function StudyTab({
   findings: f,
-  hasTrial,
-  articleTrials,
+  articleStudies,
   nct,
   setNct,
   trial,
@@ -707,8 +736,7 @@ function StudyTab({
   setUseCoi,
 }: {
   findings: PdfFindings;
-  hasTrial: boolean;
-  articleTrials: string[];
+  articleStudies: Trial[];
   nct: string | null;
   setNct: (n: string | null) => void;
   trial: Trial | null | "loading";
@@ -717,61 +745,79 @@ function StudyTab({
   useCoi: boolean;
   setUseCoi: (v: boolean) => void;
 }) {
+  const inArticle = new Set(articleStudies.map((t) => t.nct));
+  const pdfOnly = f.ncts.filter((n) => !inArticle.has(n.nct));
+  const articleStudy = articleStudies.find((t) => t.nct === nct);
+  const choices = [
+    ...articleStudies.map((t) => ({ nct: t.nct, note: "ClinicalTrials.gov" })),
+    ...pdfOnly.map((n) => ({
+      nct: n.nct,
+      note: n.registration ? "registrering" : `sidan ${n.page}`,
+    })),
+  ];
   return (
     <div className="flex flex-col gap-6">
       <section>
         <h3 className="text-sm font-semibold">Registrerad studie</h3>
-        {hasTrial ? (
-          <p className="mt-1 text-meta text-pretty text-muted-foreground">
-            Artikeln har redan studien {articleTrials.join(", ")} från ClinicalTrials.gov. Den finns
-            med i anteckningarna till bild 3.
-            {f.ncts.length > 0 &&
-              !f.ncts.some((n) => articleTrials.includes(n.nct)) &&
-              ` PDF:en nämner andra nummer: ${f.ncts.map((n) => n.nct).join(", ")}.`}
-          </p>
-        ) : f.ncts.length === 0 ? (
+        {choices.length === 0 ? (
           <p className="mt-1 text-meta text-muted-foreground">
             Inget NCT-nummer hittades i PDF:en.
           </p>
         ) : (
           <>
             <p className="mt-1 text-meta text-pretty text-muted-foreground">
-              Välj artikelns egen studie. Nummer som står vid "registered" eller
-              "ClinicalTrials.gov" står först; övriga är oftast citerade studier. Uppgifterna hämtas
-              från ClinicalTrials.gov till anteckningarna för bild 3.
+              Välj artikelns egen studie, eller <span className="font-medium">Ingen studie</span> om
+              numret är fel. Nummer vid "registered" eller "ClinicalTrials.gov" står först; övriga
+              är oftast citerade studier. Uppgifterna hamnar i anteckningarna till bild 3.
             </p>
             <div
               className="mt-2 flex flex-wrap gap-1.5"
-              role="group"
-              aria-label="Studienummer i PDF:en"
+              role="radiogroup"
+              aria-label="Studie i presentationen"
             >
-              {f.ncts.map((n) => (
+              {choices.map((c) => (
                 <Button
-                  key={n.nct}
+                  key={c.nct}
                   size="sm"
-                  variant={nct === n.nct ? "default" : "outline"}
-                  aria-pressed={nct === n.nct}
-                  onClick={() => setNct(nct === n.nct ? null : n.nct)}
+                  role="radio"
+                  variant={nct === c.nct ? "default" : "outline"}
+                  aria-checked={nct === c.nct}
+                  onClick={() => setNct(c.nct)}
                 >
-                  {n.nct}
-                  <span className="text-xs font-normal opacity-70">
-                    {n.registration ? "registrering" : `sidan ${n.page}`}
-                  </span>
+                  {c.nct}
+                  <span className="text-xs font-normal opacity-70">{c.note}</span>
                 </Button>
               ))}
+              <Button
+                size="sm"
+                role="radio"
+                variant={nct === null ? "default" : "outline"}
+                aria-checked={nct === null}
+                onClick={() => setNct(null)}
+              >
+                Ingen studie
+              </Button>
             </div>
-            {trial === "loading" && (
+            {nct === null && (
+              <p className="mt-3 text-meta text-muted-foreground">Ingen studie i presentationen.</p>
+            )}
+            {articleStudy && (
+              <div className="mt-3 rounded-md border border-border p-4">
+                <TrialDetails trial={articleStudy} />
+              </div>
+            )}
+            {!articleStudy && trial === "loading" && (
               <p className="mt-3 inline-flex items-center gap-2 text-meta text-muted-foreground">
                 <Loader2 aria-hidden className="h-4 w-4 animate-spin" /> Hämtar från
                 ClinicalTrials.gov…
               </p>
             )}
-            {nct && trial === null && (
+            {!articleStudy && nct && trial === null && (
               <p className="mt-3 text-meta text-muted-foreground">
-                {nct} kunde inte hämtas från ClinicalTrials.gov.
+                {nct} kunde inte hämtas från ClinicalTrials.gov och kommer inte med.
               </p>
             )}
-            {trial && trial !== "loading" && (
+            {!articleStudy && trial && trial !== "loading" && (
               <div className="mt-3 rounded-md border border-border p-4">
                 <TrialDetails trial={trial} />
               </div>
