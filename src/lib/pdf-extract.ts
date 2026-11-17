@@ -335,7 +335,7 @@ export function findNcts(pages: PdfPage[]): NctHit[] {
 // --- Finansiering och jäv ------------------------------------------------------
 
 const SECTION_RE =
-  /(?:^|\n)\s*(Supported by|Funded by|Funding(?: source| statement| information)?|Financial support|Role of the funding source|Declaration of interests?|Competing interests?|Conflicts? of interest(?: disclosures?| statement)?|Disclosures?(?: of potential conflicts of interest)?|Authors?['’]? [Dd]isclosures?|Acknowledge?ments?)\s*[:.]?\s*/g;
+  /(?:^|\n)\s*(Supported by|Funded by|Funding\/Support|Funding(?: source| statement| information)?|Financial support|Role of the funding source|Declaration of interests?|Competing interests?|Conflicts? of [Ii]nterest(?: [Dd]isclosures?| [Ss]tatement)?|Disclosures?(?: of potential conflicts of interest)?|Authors?['’]? [Dd]isclosures?|Acknowledge?ments?)\s*[:.]?\s*/g;
 
 function sectionKind(heading: string): "funding" | "coi" | "ack" {
   if (/acknowledg/i.test(heading)) return "ack";
@@ -437,7 +437,7 @@ export function findCaptions(pages: PdfPage[]): Caption[] {
       // Bildtexten slutar vid första meningen; "Baseline.*" räknas med fotnotstecknet
       const dot = /\.[*†‡§¶]*(?=\s)/.exec(rest);
       const end = dot ? dot.index + dot[0].length : -1;
-      const text = (end > 15 && end < 180 ? rest.slice(0, end) : rest.slice(0, 160)).trim();
+      const text = (end > 15 && end < 180 ? rest.slice(0, end) : cutWords(rest, 180)).trim();
       if (elsewhere) {
         // Figuren står på en annan sida än bildtexten (NEJM: "facing page")
         const page = otherPage(pages, p.page, elsewhere);
@@ -464,6 +464,13 @@ export function findCaptions(pages: PdfPage[]): Caption[] {
   return keep.sort((a, b) =>
     a.kind === b.kind ? Number(a.num) - Number(b.num) : a.kind === "figure" ? -1 : 1,
   );
+}
+
+/** Kortar vid ett helt ord och markerar utelämnandet. */
+function cutWords(t: string, max: number): string {
+  if (t.length <= max) return t;
+  const cut = t.lastIndexOf(" ", max);
+  return t.slice(0, cut > max * 0.6 ? cut : max).trimEnd() + " …";
 }
 
 /** Sidan som "(facing page)", "(previous page)" o.d. syftar på. */
@@ -504,7 +511,12 @@ function median(xs: number[]): number {
  * till närmaste rad med vanlig löptext. Presentatören kan rita om den.
  */
 export function suggestBox(page: PdfPage, cap: Caption): Box {
-  const ls = lines(page);
+  const all = lines(page);
+  // Text i ytterkanten (JAMA: "Downloaded from …" längs sidan, upphovsrätt
+  // längst ned) räknas inte till sidans yta
+  const ls = all.filter(
+    (l) => l.x0 > page.width * 0.03 && l.x1 < page.width * 0.97 && l.y > page.height * 0.04,
+  );
   const body = median(ls.filter((l) => l.text.trim().length > 40).map((l) => l.h)) || 9;
   const minX = Math.min(...ls.map((l) => l.x0));
   const maxX = Math.max(...ls.map((l) => l.x1));
@@ -586,7 +598,14 @@ export function suggestBox(page: PdfPage, cap: Caption): Box {
     cap.kind === "table" &&
     (under.length === 0 ? a.y - footTop < body * 5 : under.slice(0, 3).some(isProse));
 
-  if (cap.kind === "figure" || tableAbove) return tighten(figureBox());
+  // Figur med bildtexten överst (JAMA): figuren står under, som en tabell
+  // och ovanför bildtexten finns bara sidhuvudet, inget figurinnehåll
+  const contentAbove = ls.filter(
+    (l) => l.y > a.y + a.h && l.y < maxY && l.x1 > a.x - 2 && l.x0 < blockX1 + 2 && !isProse(l),
+  ).length;
+  const figureBelow =
+    cap.kind === "figure" && maxY - (a.y + a.h) < page.height * 0.15 && contentAbove < 3;
+  if ((cap.kind === "figure" && !figureBelow) || tableAbove) return tighten(figureBox());
 
   // Sista justering: har figuren egna texter (axlar, rader i tabellen) slutar
   // rutan strax ovanför den översta och räcker till den bredaste. Då kommer
@@ -699,8 +718,13 @@ export function suggestBox(page: PdfPage, cap: Caption): Box {
   // Början på ett stycke: minst två rader till strax under, i samma spalt
   const starts = cand.filter(
     (l) =>
-      cand.filter((o) => Math.abs(o.x0 - l.x0) < 6 && o.y < l.y - 1 && o.y > l.y - 2.5 * step)
-        .length >= 2,
+      cand.filter(
+        (o) =>
+          // Samma spalt: samma högerkant (marginaljustering) eller vänsterkant inom ett indrag
+          (Math.abs(o.x1 - l.x1) < 4 || Math.abs(o.x0 - l.x0) < 20) &&
+          o.y < l.y - 1 &&
+          o.y > l.y - 2.5 * step,
+      ).length >= 2,
   );
   const yEnd = starts.length ? Math.max(...starts.map((l) => l.y + l.h)) + 2 : minY - 2;
   // Bredden efter tabellens eget innehåll. Står det löptext i den andra

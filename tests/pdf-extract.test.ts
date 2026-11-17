@@ -429,3 +429,61 @@ describe("Lancet", () => {
     expect(box.y + box.h).toBeGreaterThan(220);
   });
 });
+
+// --- JAMA-format ------------------------------------------------------------------
+
+describe("JAMA", () => {
+  test("Funding/Support och Conflict of Interest Disclosures", () => {
+    const p = page([
+      "Conflict of Interest Disclosures: Dr Xu reported personal fees from AstraZeneca and Novartis outside the submitted work.",
+      "Funding/Support: This study was supported by Avanc Pharmaceutical Co Ltd, with partial support from national funding.",
+    ]);
+    const s = findSections([p]);
+    expect(s.funding?.heading).toBe("Funding/Support");
+    expect(s.funding?.text.startsWith("This study was supported by Avanc")).toBe(true);
+    expect(s.coi?.heading).toBe("Conflict of Interest Disclosures");
+  });
+
+  test("bildtexten överst: figuren står under, utan text i ytterkanten", () => {
+    const rows: [string, number, number, number, string][] = [
+      ["Fovinaciclib for First-Line Therapy of Advanced Breast Cancer", 72, 754, 7, "R"],
+      ["Figure 1. Patient Disposition", 72, 716, 7, "B"],
+    ];
+    for (let i = 0; i < 12; i++)
+      rows.push([`Box ${i}: patients assessed`, 90 + (i % 3) * 150, 690 - i * 22, 7, "R"]);
+    for (let i = 0; i < 10; i++) {
+      rows.push([
+        "Ordinary body text that runs across the full column width.",
+        72,
+        380 - i * 12,
+        9,
+        "R",
+      ]);
+      rows.push([
+        "Ordinary body text that runs across the full column width.",
+        312,
+        380 - i * 12,
+        9,
+        "R",
+      ]);
+    }
+    // "Downloaded from …" längs vänsterkanten och upphovsrätt längst ned
+    rows.push(["Downloaded from jamanetwork.com by Karolinska Institutet", 3, 10, 8, "R"]);
+    const p = fonted(rows, 3);
+    const [cap] = findCaptions([p]);
+    const box = suggestBox(p, cap);
+    expect(box.x).toBeGreaterThan(60);
+    expect(box.y).toBeGreaterThan(380);
+    expect(box.y + box.h).toBeLessThanOrEqual(716 + 7 + 3); // bildtextraden som mest
+    expect(box.y + box.h).toBeGreaterThan(690);
+  });
+
+  test("lång bildtext kortas vid ett helt ord", () => {
+    const long =
+      "Figure 1 Kaplan-Meier Curves of Progression-Free Survival in the Intent-to-Treat Population According to Assessment by Blinded Independent Central Review and by Investigators in All Patients Who Were Randomized";
+    const [cap] = findCaptions([page([long])]);
+    expect(cap.text.endsWith(" …")).toBe(true);
+    expect(cap.text.length).toBeLessThanOrEqual(184);
+    expect(/\s\S+ …$/.test(cap.text)).toBe(true);
+  });
+});
