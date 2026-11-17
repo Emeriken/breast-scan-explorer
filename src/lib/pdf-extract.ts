@@ -30,6 +30,8 @@ export type Effect = {
   est: string;
   lo: string;
   hi: string;
+  /** Enhet för en skillnad: "%" eller "percentage points" */
+  unit?: string;
   /** Konfidensgraden som den står, t.ex. "95" eller "90"; saknas om den inte anges */
   ci?: string;
   /** p-värde om det står direkt efter intervallet, t.ex. "<0.001" */
@@ -73,6 +75,7 @@ export type PdfFindings = {
 export function normalize(s: string): string {
   return s
     .replace(/(\d)\s*[·•]\s*(\d)/g, "$1.$2") // Lancet skriver 0·60
+    .replace(/\b([PpNn]) 5 (?=\.?\d)/g, "$1 = ") // JCO:s typsnitt: "P 5 .004" är "P = .004"
     .replace(/([Pp]\s*)¼(\s*[.\d])/g, "$1=$2") // AACR:s typsnitt: "P ¼ 0.035"
     .replace(/[\u2212\u2013\u2014\u2010\u2011]/g, "-")
     .replace(/[\u00a0\u2009\u202f]/g, " ")
@@ -216,6 +219,59 @@ const EFFECT_RE = new RegExp(
   "g",
 );
 
+// Absolut skillnad med KI (t.ex. non-inferiority): "a difference of -2.2%
+// (95% CI, -7.2 to 2.8; P = .001)". Intervallet med "to" eller komma, inte
+// bindestreck, eftersom gränserna kan vara negativa.
+const SNUM = "(-?\\d+(?:\\.\\d+)?)";
+const DIFF_RE = new RegExp(
+  `\\b(?:[Aa]bsolute |[Rr]isk |[Mm]ean )?[Dd]ifference\\b[^\\d\\n-]{0,40}?${SNUM}\\s*(%|percentage points?)?\\s*[;,(\\[]?\\s*(?:(\\d{2})\\s*%\\s*)?(?:CI|[Cc]onfidence [Ii]nterval)[^\\d-]{0,10}${SNUM}%?\\s*(?:to|,)\\s*${SNUM}%?` +
+    `(?:[^Pp\\d]{0,8}[Pp]\\s*(?:value)?\\s*([<>=≤≥])\\s*(0?\\.\\d+))?`,
+  "g",
+);
+
+type RawHit = {
+  index: number;
+  length: number;
+  measure: string;
+  est: string;
+  unit?: string;
+  level?: string;
+  lo: string;
+  hi: string;
+  cmp?: string;
+  pv?: string;
+};
+
+function rawHits(text: string): RawHit[] {
+  const out: RawHit[] = [];
+  for (const m of text.matchAll(EFFECT_RE))
+    out.push({
+      index: m.index!,
+      length: m[0].length,
+      measure: measureLabel(m[1]),
+      est: m[2],
+      level: m[3],
+      lo: m[4],
+      hi: m[5],
+      cmp: m[6],
+      pv: m[7],
+    });
+  for (const m of text.matchAll(DIFF_RE))
+    out.push({
+      index: m.index!,
+      length: m[0].length,
+      measure: "Skillnad",
+      est: m[1],
+      unit: m[2],
+      level: m[3],
+      lo: m[4],
+      hi: m[5],
+      cmp: m[6],
+      pv: m[7],
+    });
+  return out.sort((a, b) => a.index - b.index);
+}
+
 function measureLabel(m: string): string {
   const s = m.toLowerCase();
   if (s.includes("subdistribution")) return "sHR";
@@ -253,13 +309,12 @@ export function findEffects(pages: PdfPage[]): Effect[] {
         })
         .join("\n"),
     );
-    for (const m of text.matchAll(EFFECT_RE)) {
-      const [est, level, lo, hi] = [m[2], m[3], m[4], m[5]];
+    for (const m of rawHits(text)) {
+      const { est, level, lo, hi, measure } = m;
       // Rimlighetskontroll: skattningen ska ligga i intervallet
       if (!(Number(lo) <= Number(est) && Number(est) <= Number(hi))) continue;
-      const measure = measureLabel(m[1]);
-      const start = m.index!;
-      const end = start + m[0].length;
+      const start = m.index;
+      const end = start + m.length;
       const lineStart = text.lastIndexOf("\n", start) + 1;
       const small = text[lineStart] === SMALL;
       const lineEnd = text.indexOf("\n", end);
@@ -279,7 +334,8 @@ export function findEffects(pages: PdfPage[]): Effect[] {
         lo,
         hi,
         ci: level,
-        p: m[6] ? `${m[6] === "=" ? "=" : m[6]}${m[7]}` : undefined,
+        unit: m.unit,
+        p: m.cmp ? `${m.cmp}${m.pv}` : undefined,
         quote,
         small,
       };
@@ -299,7 +355,7 @@ export function findEffects(pages: PdfPage[]): Effect[] {
 const SMALL = "\u0001";
 
 /** "0.38" → "0,38" (svenskt decimaltecken i presentationen) */
-const sv = (n: string) => n.replace(".", ",");
+const sv = (n: string) => n.replace(".", ",").replace(/^-/, "−");
 
 /** "HR 0,38 (95 % KI 0,27–0,54); p<0,001" */
 export function effectLabel(e: Effect): string {
@@ -307,7 +363,11 @@ export function effectLabel(e: Effect): string {
     ? `; p${e.p.startsWith("=") ? " = " + sv(e.p.slice(1)) : e.p[0] + sv(e.p.slice(1))}`
     : "";
   const ci = e.ci ? `${e.ci} % KI` : "KI";
-  return `${e.measure} ${sv(e.est)} (${ci} ${sv(e.lo)}–${sv(e.hi)})${p}`;
+  const unit = e.unit ? (e.unit === "%" ? " %" : " procentenheter") : "";
+  return `${e.measure} ${sv(e.est)}${unit} (${ci} ${sv(e.lo)} till ${sv(e.hi)})${p}`.replace(
+    / till (?!−)/,
+    e.unit ? " till " : "–",
+  );
 }
 
 // --- Studienummer ------------------------------------------------------------
@@ -335,11 +395,11 @@ export function findNcts(pages: PdfPage[]): NctHit[] {
 // --- Finansiering och jäv ------------------------------------------------------
 
 const SECTION_RE =
-  /(?:^|\n)\s*(Supported by|Funded by|Funding\/Support|Funding(?: source| statement| information)?|Financial support|Role of the funding source|Declaration of interests?|Competing interests?|Conflicts? of [Ii]nterest(?: [Dd]isclosures?| [Ss]tatement)?|Disclosures?(?: of potential conflicts of interest)?|Authors?['’]? [Dd]isclosures?|Acknowledge?ments?)\s*[:.]?\s*/g;
+  /(?:^|\n)\s*(Supported (?:in whole or in part )?by|Funded by|SUPPORT|Funding\/Support|Funding(?: source| statement| information)?|Financial support|Role of the funding source|Declaration of interests?|Competing interests?|Conflicts? of [Ii]nterest(?: [Dd]isclosures?| [Ss]tatement)?|AUTHORS['’] DISCLOSURES OF POTENTIAL CONFLICTS(?:\s+OF INTEREST)?|Disclosures?(?: of potential conflicts of interest)?|Authors?['’]? [Dd]isclosures?|Acknowledge?ments?)\s*[:.]?\s*/g;
 
 function sectionKind(heading: string): "funding" | "coi" | "ack" {
   if (/acknowledg/i.test(heading)) return "ack";
-  return /fund|financial support|supported by/i.test(heading) ? "funding" : "coi";
+  return /fund|financial support|^support$|supported\b.*\bby/i.test(heading) ? "funding" : "coi";
 }
 
 // NEJM: jävsdeklarationen finns bara som formulär på webben
@@ -363,16 +423,19 @@ export function findSections(pages: PdfPage[]): { funding?: SectionHit; coi?: Se
       // Bara ett riktigt avsnitt: börjar med versal och är mer än några ord
       if (!/^[A-Z]/.test(body) || body.length < 40) continue;
       // "Supported by X" är en mening; rubriken hör till texten
-      if (/^(supported|funded) by$/i.test(m[1])) {
+      if (/^(supported(?: in whole or in part)?|funded) by$/i.test(m[1])) {
         const end = body.search(/\.\s+[A-Z]/);
         body = `${m[1]} ${end > 0 ? body.slice(0, end + 1) : body}`;
       }
+      // Nästa rubrik i versaler ("DATA SHARING STATEMENT") avslutar avsnittet
+      const next = body.slice(20).search(/(?<=[.)]\s)[A-Z]{3,}(?:\s+[A-Z]{2,}){1,}\b/);
+      if (next >= 0) body = body.slice(0, next + 20).trim();
       const cut = body.lastIndexOf(". ", 600);
       if (body.length > 600 && cut > 200) body = body.slice(0, cut + 1);
       found[kind] = {
         kind: kind === "ack" ? "funding" : kind,
         page: p.page,
-        heading: m[1],
+        heading: m[1].replace(/\s+/g, " "),
         text: body,
       };
     }
@@ -437,7 +500,11 @@ export function findCaptions(pages: PdfPage[]): Caption[] {
       // Bildtexten slutar vid första meningen; "Baseline.*" räknas med fotnotstecknet
       const dot = /\.[*†‡§¶]*(?=\s)/.exec(rest);
       const end = dot ? dot.index + dot[0].length : -1;
-      const text = (end > 15 && end < 180 ? rest.slice(0, end) : cutWords(rest, 180)).trim();
+      // Börjar bildtexten med en panel ("(A) Forest plot ...") räcker inte första meningen
+      const panels = /^\([A-Z]\)/.test(rest);
+      const text = (
+        end > 15 && end < 180 && !panels ? rest.slice(0, end) : cutWords(rest, 180)
+      ).trim();
       if (elsewhere) {
         // Figuren står på en annan sida än bildtexten (NEJM: "facing page")
         const page = otherPage(pages, p.page, elsewhere);
@@ -529,7 +596,19 @@ export function suggestBox(page: PdfPage, cap: Caption): Box {
 
   // Vanlig löptext: lång rad i normal storlek. Sådana rader finns inte i
   // figurer (axeltexter är korta eller mindre) och avgränsar figuren.
+  // Löptext har grannrader i samma spalt; en ensam lång rad (axeltitel,
+  // förklaring i figuren) är det inte
+  const hasNeighbor = (l: Line) =>
+    ls.some(
+      (o) =>
+        o !== l &&
+        Math.abs(o.y - l.y) > 1 &&
+        Math.abs(o.y - l.y) < l.h * 1.8 &&
+        (Math.abs(o.x0 - l.x0) < 4 || Math.abs(o.x1 - l.x1) < 4) &&
+        o.text.trim().length > 25,
+    );
   const isBody = (l: Line, [c0, c1]: [number, number], minLen = 40) =>
+    hasNeighbor(l) &&
     l.text.trim().length > minLen &&
     l.h >= body * 0.9 &&
     l.x1 - l.x0 > (maxX - minX) * 0.25 &&
@@ -734,19 +813,25 @@ export function suggestBox(page: PdfPage, cap: Caption): Box {
     ls.some(
       (l) => l.y > yEnd && l.y < a.y && looksBody(l) && l.x0 >= other[0] - 2 && l.x0 < other[1],
     );
+  // Gränsen mot löptexten i andra spalten: där den börjar (eller slutar)
+  const otherProse = ls.filter(
+    (l) => l.y > yEnd && l.y < a.y && looksBody(l) && l.x0 >= other[0] - 2 && l.x0 < other[1],
+  );
+  const limit0 = otherProse.length ? Math.min(...otherProse.map((l) => l.x0)) - 2 : maxX;
+  const limit1 = otherProse.length ? Math.max(...otherProse.map((l) => l.x1)) + 2 : minX;
   const inside = ls.filter(
     (l) =>
       l.y > yEnd &&
       l.y < a.y + a.h &&
       !looksBody(l) &&
-      (!beside || (l.x1 > own[0] + 2 && l.x0 < own[1] - 2)),
+      (!beside || (a.x < mid ? l.x0 < limit0 : l.x1 > limit1)),
   );
   const x0 = Math.min(a.x, ...inside.map((l) => l.x0));
   const x1 = Math.max(a.x + a.w, ...inside.map((l) => l.x1));
   return {
-    x: Math.max(minX, x0) - 2,
+    x: Math.max(minX, x0) - 4,
     y: yEnd,
-    w: Math.min(maxX, x1) - Math.max(minX, x0) + 4,
+    w: Math.min(maxX, x1) - Math.max(minX, x0) + 8,
     h: Math.max(20, a.y + a.h + 2 - yEnd),
   };
 }

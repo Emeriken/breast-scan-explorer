@@ -487,3 +487,62 @@ describe("JAMA", () => {
     expect(/\s\S+ …$/.test(cap.text)).toBe(true);
   });
 });
+
+// --- JCO-format -------------------------------------------------------------------
+
+describe("JCO", () => {
+  test('"P 5 .004" är P = .004 och absolut skillnad med KI hittas', () => {
+    const p = page([
+      "corresponding to an estimated difference of -2.1% (95% CI, -6.5 to 2.2; P 5 .001).",
+      "regardless of treatment arm (odds ratio [OR], 2.96 [95% CI, 1.4 to 6.2]; P 5 .004).",
+    ]);
+    const [d, or] = findEffects([p]);
+    expect(d.measure).toBe("Skillnad");
+    expect(effectLabel(d)).toBe("Skillnad −2,1 % (95 % KI −6,5 till 2,2); p = ,001");
+    expect(effectLabel(or)).toBe("OR 2,96 (95 % KI 1,4–6,2); p = ,004");
+  });
+
+  test("SUPPORT och versalrubrik för jäv, avslutad vid nästa versalrubrik", () => {
+    const p = page([
+      "SUPPORT",
+      "Supported in whole or in part by the National Cancer Institute of the National Institutes of Health.",
+      "AUTHORS’ DISCLOSURES OF POTENTIAL CONFLICTS",
+      "OF INTEREST",
+      "Disclosures provided by the authors are available with this article at DOI https://doi.org/10.1200/JCO-26-00474.",
+      "DATA SHARING STATEMENT",
+      "A data sharing statement provided by the authors is available with this article.",
+    ]);
+    const s = findSections([p]);
+    expect(
+      s.funding?.text.startsWith("Supported in whole or in part by the National Cancer Institute"),
+    ).toBe(true);
+    expect(s.coi?.heading).toBe("AUTHORS’ DISCLOSURES OF POTENTIAL CONFLICTS OF INTEREST");
+    expect(s.coi?.text).not.toContain("DATA SHARING");
+  });
+
+  test("ensam axeltitel i figuren stoppar inte rutan", () => {
+    const rows: [string, number, number, number, string][] = [];
+    for (let i = 0; i < 10; i++)
+      rows.push([
+        "Body text that runs across the full column width here and more.",
+        37,
+        760 - i * 12,
+        8.5,
+        "R",
+      ]);
+    for (let i = 0; i < 8; i++) rows.push([`${i}%`, 160 + i * 40, 600 - i * 30, 6, "R"]);
+    rows.push(["Conventional PMRT – Hypofractionated PMRT axis", 169, 269, 9, "R"]);
+    rows.push([
+      "FIG 1. (A) Forest plot, intention-to-treat. (B) Forest plot, as reconstructed.",
+      47,
+      239,
+      8,
+      "B",
+    ]);
+    const p = fonted(rows, 7);
+    const [cap] = findCaptions([p]);
+    expect(cap.text).toContain("(B) Forest plot");
+    const box = suggestBox(p, cap);
+    expect(box.y + box.h).toBeGreaterThan(600);
+  });
+});
