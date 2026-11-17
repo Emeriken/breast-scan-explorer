@@ -47,8 +47,10 @@ export type DeckPdf = {
   effects: { row: 1 | 2; label: string; quote: string; page: number }[];
   /** Figurer och tabeller som bilder, i vald ordning */
   figures: {
-    /** Rubrik på bilden, t.ex. "Figur 2: Kaplan–Meier för PFS" */
+    /** Rubrik på bilden, t.ex. "Figur 2" */
     title: string;
+    /** Bildtexten ur PDF:en, ordagrant (förkortad), under rubriken */
+    caption?: string;
     /** Kort namn i källraden, t.ex. "figur 2" */
     label: string;
     png: Uint8Array;
@@ -57,8 +59,11 @@ export type DeckPdf = {
   }[];
   funding?: { text: string; page: number };
   coi?: { text: string; page: number };
-  /** Registrerad studie som hittades i PDF:en, när artikeln saknar en */
-  trials?: ArticleTrials;
+  /**
+   * Studien som presentatören valt. undefined: artikelns egen studie (om den
+   * finns). null: ingen studie i presentationen.
+   */
+  trials?: ArticleTrials | null;
 };
 
 export type Design =
@@ -177,7 +182,12 @@ function swedishDate(iso: string): string {
 /** Allt som ska in i mallen, som markör → text. Ren funktion, testbar utan webbläsare. */
 export function deckContent(input: DeckInput): Record<string, Value> {
   const { article: a, area, presenter, date, abstract, rubric, pdf } = input;
-  const trials = a.trials?.studies.length ? a.trials : pdf?.trials;
+  const trials =
+    pdf && pdf.trials !== undefined
+      ? (pdf.trials ?? undefined)
+      : a.trials?.studies.length
+        ? a.trials
+        : undefined;
   const design = designOf(a);
   const pmid = a.pmid ?? pmidFromUrl(a.url);
   const authors = authorLine(a.authors, a.author_count);
@@ -450,6 +460,7 @@ export async function buildDeck(
     if (xml.includes("{{")) zip.setText(name, fillXml(xml, content));
   }
   if (input.pdf?.figures.length) await addFigures(zip, figureTemplate, content, input);
+  await renumberSlides(zip);
   const core = "docProps/core.xml";
   if (zip.names().includes(core)) {
     const xml = await zip.text(core);
@@ -469,9 +480,23 @@ export async function buildDeck(
 const SLIDE_CT = "application/vnd.openxmlformats-officedocument.presentationml.slide+xml";
 const REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
 const REL_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide";
-// Ytan för bilden på mallens figurbild (EMU), under rubriken och ovanför källraden
-const AREA = { x: 964800, y: 1500000, w: 7680000, h: 2960000 };
-const SOURCE_Y = 4500000;
+// Mallens figurbild (EMU, bilden är 9144000 × 5148263). Rubriken står i
+// mallens rubrikruta (en rad), bildtexten på en egen rad under den, och
+// figuren i ytan mellan bildtexten och källraden.
+const LEFT = 964800;
+const WIDTH = 9144000 - 2 * LEFT;
+const CAPTION = { y: 1330000, h: 330000 };
+const AREA = { x: LEFT, y: 1720000, w: WIDTH, h: 2690000 };
+const SOURCE_Y = 4470000;
+
+/** En textruta utan ram, i grått. */
+function textBox(id: number, name: string, y: number, h: number, size: number, text: string) {
+  return (
+    `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${name}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>` +
+    `<p:spPr><a:xfrm><a:off x="${LEFT}" y="${y}"/><a:ext cx="${WIDTH}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>` +
+    `<p:txBody><a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" anchor="t"><a:normAutofit/></a:bodyPr><a:lstStyle/><a:p><a:r><a:rPr lang="sv-SE" sz="${size}"><a:solidFill><a:srgbClr val="7F7F7F"/></a:solidFill></a:rPr><a:t>${esc(text)}</a:t></a:r></a:p></p:txBody></p:sp>`
+  );
+}
 
 function figureXml(
   slide: string,
@@ -484,23 +509,52 @@ function figureXml(
     /<p:sp>(?:(?!<\/p:sp>)[\s\S])*?<p:ph type="body" idx="1"\/>[\s\S]*?<\/p:sp>/,
     "",
   );
+  // Utan bildtext får figuren även bildtextens plats
+  const top = fig.caption ? AREA.y : CAPTION.y;
+  const room = AREA.y + AREA.h - top;
   const ratio = fig.width / fig.height;
   let w = AREA.w;
   let h = Math.round(w / ratio);
-  if (h > AREA.h) {
-    h = AREA.h;
+  if (h > room) {
+    h = room;
     w = Math.round(h * ratio);
   }
   const x = AREA.x + Math.round((AREA.w - w) / 2);
+  const y = top + Math.round((room - h) / 2);
   const pic =
     `<p:pic><p:nvPicPr><p:cNvPr id="950" name="${esc(fig.label)}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>` +
     `<p:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
-    `<p:spPr><a:xfrm><a:off x="${x}" y="${AREA.y}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
-  const caption =
-    `<p:sp><p:nvSpPr><p:cNvPr id="951" name="Källa"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>` +
-    `<p:spPr><a:xfrm><a:off x="${AREA.x}" y="${SOURCE_Y}"/><a:ext cx="${AREA.w}" cy="220000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>` +
-    `<p:txBody><a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0"/><a:lstStyle/><a:p><a:r><a:rPr lang="sv-SE" sz="900"><a:solidFill><a:srgbClr val="7F7F7F"/></a:solidFill></a:rPr><a:t>${esc(source)}</a:t></a:r></a:p></p:txBody></p:sp>`;
-  return withoutBody.replace("</p:spTree>", pic + caption + "</p:spTree>");
+    `<p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:ln w="6350"><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill></a:ln></p:spPr></p:pic>`;
+  const caption = fig.caption
+    ? textBox(952, "Bildtext", CAPTION.y, CAPTION.h, 1100, fig.caption)
+    : "";
+  const src = textBox(951, "Källa", SOURCE_Y, 220000, 900, source);
+  return withoutBody.replace("</p:spTree>", caption + pic + src + "</p:spTree>");
+}
+
+/**
+ * Sidnumret i sidfoten är ett fält med ett sparat värde. PowerPoint räknar om
+ * det, men många visare (t.ex. i mobilen) visar det sparade. Sätt det till
+ * bildens plats i ordningen, eftersom figurbilderna flyttar de följande.
+ */
+async function renumberSlides(zip: Zip): Promise<void> {
+  const pres = await zip.text("ppt/presentation.xml");
+  const rels = await zip.text("ppt/_rels/presentation.xml.rels");
+  const target = new Map(
+    [
+      ...rels.matchAll(/<Relationship [^>]*?Id="([^"]+)"[^>]*?Target="(slides\/slide\d+\.xml)"/g),
+    ].map((m) => [m[1], `ppt/${m[2]}`]),
+  );
+  const order = [...pres.matchAll(/<p:sldId [^>]*?r:id="([^"]+)"/g)].map((m) => target.get(m[1]));
+  for (const [i, name] of order.entries()) {
+    if (!name || !zip.names().includes(name)) continue;
+    const xml = await zip.text(name);
+    const next = xml.replace(
+      /(<a:fld [^>]*type="slidenum"[^>]*>(?:(?!<\/a:fld>)[\s\S])*?<a:t>)\d*(<\/a:t>)/g,
+      `$1${i + 1}$2`,
+    );
+    if (next !== xml) zip.setText(name, next);
+  }
 }
 
 /**
