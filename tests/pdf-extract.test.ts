@@ -167,6 +167,39 @@ describe("suggestBox", () => {
     expect(box.y).toBeGreaterThan(cap.anchor.y);
     expect(box.y + box.h).toBeLessThan(780 - 12 + 1);
   });
+
+  test("två figurer bredvid varandra får var sin spalt", () => {
+    // Som Breast Cancer Research: en figur i vänster spalt, en i höger,
+    // bildtexterna i olika höjd och löptext under båda.
+    const body = "This is ordinary body text that runs across the full width of a column.";
+    const items: PdfTextItem[] = [];
+    const add = (str: string, x: number, y: number, h = 9) =>
+      items.push({ str, x, y, w: Math.min(str.length * 3.3, 240), h, eol: true });
+    for (let i = 0; i < 20; i++) {
+      add(`Axis ${i}`, 60, 740 - i * 14, 6);
+      add(`Axis ${i}`, 310, 740 - i * 14, 6);
+    }
+    add("Fig. 2 Cumulative incidence of time to first ALT elevation", 305, 418);
+    add("Fig. 1 Cumulative incidence of time to first neutropenia", 57, 438);
+    for (let i = 0; i < 8; i++) {
+      add(body, 57, 400 - i * 12);
+      add(body, 305, 380 - i * 12);
+    }
+    const p: PdfPage = { page: 1, width: 595, height: 794, items };
+    const caps = findCaptions([p]);
+    const [left, right] = ["figure1", "figure2"].map((id) => caps.find((c) => c.id === id)!);
+    const bl = suggestBox(p, left);
+    const br = suggestBox(p, right);
+    expect(bl.x + bl.w).toBeLessThan(300);
+    expect(br.x).toBeGreaterThan(295);
+  });
+});
+
+describe("findCaptions, avstavning", () => {
+  test("avstavning vid radbrytning tas bort i bildtexten", () => {
+    const p = page(["Fig. 1 Cumulative incidence of AE-related ri-", "bociclib discontinuation"]);
+    expect(findCaptions([p])[0].text).toContain("ribociclib discontinuation");
+  });
 });
 
 describe("analyzePdf", () => {
