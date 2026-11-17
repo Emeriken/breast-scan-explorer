@@ -38,6 +38,7 @@ type RawItem = {
   width?: number;
   height?: number;
   hasEOL?: boolean;
+  fontName?: string;
 };
 
 /** Öppna PDF:en och läs textlagret på alla sidor. */
@@ -62,6 +63,7 @@ export async function openPdf(data: ArrayBuffer): Promise<{ doc: PdfDoc; pages: 
           w: it.width ?? 0,
           h: it.height || Math.abs(it.transform![3]),
           eol: Boolean(it.hasEOL),
+          font: it.fontName,
         })),
     });
   }

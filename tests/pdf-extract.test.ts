@@ -316,3 +316,116 @@ describe("NEJM", () => {
     expect(box.y).toBeLessThan(600);
   });
 });
+
+// --- Lancet-format ----------------------------------------------------------------
+
+/** Rader med position och typsnitt: [text, x, y, höjd, typsnitt]. */
+function fonted(rows: [string, number, number, number, string][], n = 1): PdfPage {
+  return {
+    page: n,
+    width: 595,
+    height: 799,
+    items: rows.map(([str, x, y, h, font]) => ({
+      str,
+      x,
+      y,
+      w: Math.min(str.length * 0.45 * h, 300),
+      h,
+      eol: true,
+      font,
+    })),
+  };
+}
+
+describe("Lancet", () => {
+  test("KI-nivån följer med: 90 % KI står inte som 95 %", () => {
+    const p = page(["The 5-year HR was 1·13 (90% CI 0·77–1·66) for locoregional recurrence."]);
+    const [e] = findEffects([p]);
+    expect(e.ci).toBe("90");
+    expect(effectLabel(e)).toBe("HR 1,13 (90 % KI 0,77–1,66)");
+  });
+
+  test("träff i figurtext citerar bara raden, och löptexten går före figuren", () => {
+    const rows: [string, number, number, number, string][] = [];
+    for (let i = 0; i < 6; i++)
+      rows.push([
+        "Ordinary body text that runs across the full column width here.",
+        30,
+        700 - i * 12,
+        9,
+        "R",
+      ]);
+    rows.push(["409 (0) 383 (16) 349 (29) 318 (36) 288 (37)", 260, 500, 6, "R"]);
+    rows.push(["HR 1·37, 95% CI 0·57–3·25", 400, 488, 6, "R"]);
+    rows.push(["Number at risk (events) Conventional fractionated", 260, 476, 6, "R"]);
+    const fig = fonted(rows, 5);
+    const body = page(
+      ["Local recurrence was similar (subdistribution HR 1·37, 95% CI 0·57–3·25; figure 1B)."],
+      7,
+    );
+    const onlyFig = findEffects([fig]);
+    expect(onlyFig[0].quote).toBe("HR 1.37, 95% CI 0.57-3.25");
+    const both = findEffects([fig, body]);
+    expect(both).toHaveLength(1);
+    expect(both[0].page).toBe(7);
+  });
+
+  test("referensnummer efter punkten hör till meningen före", () => {
+    const p = page([
+      "Risk factors should also be considered. 18,19 The similar incidences were consistent",
+      "with a meta-analysis (HR 1·00, 95% CI 0·78–1·29; p=0·98).",
+    ]);
+    expect(findEffects([p])[0].quote.startsWith("The similar incidences")).toBe(true);
+  });
+
+  test("fet rubrik: bildtexten slutar före beskrivningen i brödstil", () => {
+    const p = fonted([
+      [
+        "Figure 1: Cumulative incidence of recurrence by region and treatment group",
+        262,
+        137,
+        7,
+        "Bold",
+      ],
+      [
+        "(A) Locoregional recurrence. (B) Local recurrence. (C) Regional recurrence.",
+        262,
+        128,
+        7,
+        "Reg",
+      ],
+    ]);
+    expect(findCaptions([p])[0].text).toBe(
+      "Cumulative incidence of recurrence by region and treatment group",
+    );
+  });
+
+  test("figur till höger om en smal spalt får bildtextens bredd, utan sidhuvud", () => {
+    const rows: [string, number, number, number, string][] = [["Articles", 508, 752, 12, "H"]];
+    // Smal löptextspalt till vänster hela vägen
+    for (let i = 0; i < 50; i++)
+      rows.push(["Ordinary body text in the narrow left column.", 30, 700 - i * 11, 9, "R"]);
+    // Figurens texter till höger
+    for (let i = 0; i < 8; i++)
+      rows.push([`Axis label ${i}`, 270 + (i % 2) * 200, 650 - i * 50, 6, "R"]);
+    rows.push(["Figure 1: Cumulative incidence of recurrence by region", 262, 137, 7, "Bold"]);
+    rows.push(["(A) Locoregional recurrence. (B) Local recurrence.", 262, 128, 7, "Reg"]);
+    const p = fonted(rows, 5);
+    const [cap] = findCaptions([p]);
+    const box = suggestBox(p, cap);
+    expect(box.x).toBeGreaterThan(255);
+    expect(box.y + box.h).toBeLessThan(700); // inte upp till sidhuvudet
+    expect(box.y + box.h).toBeGreaterThan(650);
+  });
+
+  test("tabell med bildtexten under: rutan ligger ovanför bildtexten", () => {
+    const rows: [string, number, number, number, string][] = [];
+    for (let i = 0; i < 12; i++) rows.push([`Chest wall row ${i}`, 34, 220 - i * 12, 7, "R"]);
+    rows.push(["Table 1: Sites of locoregional recurrence by treatment group", 34, 54, 7, "Bold"]);
+    const p = fonted(rows, 4);
+    const [cap] = findCaptions([p]);
+    const box = suggestBox(p, cap);
+    expect(box.y).toBeGreaterThanOrEqual(54);
+    expect(box.y + box.h).toBeGreaterThan(220);
+  });
+});

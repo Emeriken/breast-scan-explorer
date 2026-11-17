@@ -8,7 +8,16 @@
  */
 
 /** En textbit ur PDF:ens textlager, i PDF-koordinater (y uppåt, punkter). */
-export type PdfTextItem = { str: string; x: number; y: number; w: number; h: number; eol: boolean };
+export type PdfTextItem = {
+  str: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  eol: boolean;
+  /** Typsnittets namn i PDF:en; skiljer t.ex. fet rubrik från brödtext */
+  font?: string;
+};
 export type PdfPage = { page: number; width: number; height: number; items: PdfTextItem[] };
 /** Rektangel i PDF-koordinater: x, y nedre vänstra hörnet. */
 export type Box = { x: number; y: number; w: number; h: number };
@@ -21,6 +30,8 @@ export type Effect = {
   est: string;
   lo: string;
   hi: string;
+  /** Konfidensgraden som den står, t.ex. "95" eller "90"; saknas om den inte anges */
+  ci?: string;
   /** p-värde om det står direkt efter intervallet, t.ex. "<0.001" */
   p?: string;
   /** Meningen runt träffen, ordagrant ur PDF:en (normaliserad) */
@@ -93,6 +104,8 @@ export type Line = {
   y: number;
   h: number;
   first: PdfTextItem;
+  /** Radens vanligaste typsnitt (efter antal tecken) */
+  font?: string;
 };
 
 const LINES = new WeakMap<PdfPage, Line[]>();
@@ -137,6 +150,14 @@ export function lines(p: PdfPage): Line[] {
     }
   }
   if (cur && cur.text.trim()) out.push(cur);
+  // Radens typsnitt: det som bär flest tecken
+  for (const l of out) {
+    const count = new Map<string, number>();
+    for (const it of p.items)
+      if (it.font && it.str.trim() && Math.abs(it.y - l.y) < 1 && it.x >= l.x0 - 1 && it.x <= l.x1)
+        count.set(it.font, (count.get(it.font) ?? 0) + it.str.length);
+    l.font = [...count].sort((a, b) => b[1] - a[1])[0]?.[0];
+  }
   LINES.set(p, out);
   return out;
 }
@@ -167,7 +188,8 @@ function sentenceAround(text: string, start: number, end: number): string {
   // Sista meningsgränsen före träffen
   let head = before;
   let cut = -1;
-  for (const m of before.matchAll(/[.!?]\s+(?=[A-Z(])/g)) {
+  // Referensnummer efter punkten hör till meningen före: "considered. 18,19 The"
+  for (const m of before.matchAll(/[.!?](?:\s*\d{1,3}(?:[,-]\s?\d{1,3})*)?\s+(?=[A-Z(])/g)) {
     if (m[0][0] === "." && ABBREV.test(before.slice(0, m.index! + 1))) continue;
     cut = m.index! + m[0].length;
   }
@@ -189,7 +211,7 @@ const MEASURE =
   "(?:[Aa]djusted |[Ss]tratified |[Uu]nstratified )?(?:[Hh]azard [Rr]atio|[Oo]dds [Rr]atio|[Rr]isk [Rr]atio|[Rr]elative [Rr]isk|[Rr]ate [Rr]atio|[Ss]ubdistribution [Hh]azard [Rr]atio|aHR|sHR|HR|OR|RR|IRR)";
 const NUM = "(\\d+(?:\\.\\d+)?)";
 const EFFECT_RE = new RegExp(
-  `\\b(${MEASURE})\\b[^\\d\\n]{0,50}?${NUM}\\s*[;,(\\[]?\\s*(?:\\d{2}\\s*%\\s*)?(?:CI|[Cc]onfidence [Ii]nterval)[^\\d]{0,10}${NUM}\\s*(?:-|to|,)\\s*${NUM}` +
+  `\\b(${MEASURE})\\b[^\\d\\n]{0,50}?${NUM}\\s*[;,(\\[]?\\s*(?:(\\d{2})\\s*%\\s*)?(?:CI|[Cc]onfidence [Ii]nterval)[^\\d]{0,10}${NUM}\\s*(?:-|to|,)\\s*${NUM}` +
     `(?:[^Pp\\d]{0,8}[Pp]\\s*(?:value)?\\s*([<>=≤≥])\\s*(0?\\.\\d+))?`,
   "g",
 );
@@ -205,33 +227,76 @@ function measureLabel(m: string): string {
 }
 
 export function findEffects(pages: PdfPage[]): Effect[] {
-  const out: Effect[] = [];
-  const seen = new Set<string>();
+  const out: (Effect & { small: boolean })[] = [];
+  const at = new Map<string, number>();
   for (const p of pages) {
-    const text = normalize(pageText(p));
+    const ls = lines(p);
+    const body = median(ls.filter((l) => l.text.trim().length > 40).map((l) => l.h)) || 9;
+    // Text i figurer och tabeller (mindre än löptexten) märks i början av raden,
+    // så att citatet bara blir den raden och inte axeltexter runt omkring
+    // Sidhuvud och sidfot (tidskriftens namn, sidnummer) hör inte till meningarna
+    // (kort rad nära kanten som inte avslutar en mening)
+    const inBody = ls.filter(
+      (l) =>
+        !(
+          (l.y > p.height * 0.93 || l.y < p.height * 0.06) &&
+          l.text.trim().length < 60 &&
+          !/[.)]$/.test(l.text.trim())
+        ),
+    );
+    const text = normalize(
+      inBody
+        .map((l) => {
+          const t = l.text.replace(/\s+/g, " ").trim();
+          // Upphöjda referensnummer ("18,19") är små men hör till löptexten
+          return (l.h < body * 0.88 && !/^[\d,\-–\s]+$/.test(t) ? SMALL : "") + t;
+        })
+        .join("\n"),
+    );
     for (const m of text.matchAll(EFFECT_RE)) {
-      const [est, lo, hi] = [m[2], m[3], m[4]];
+      const [est, level, lo, hi] = [m[2], m[3], m[4], m[5]];
       // Rimlighetskontroll: skattningen ska ligga i intervallet
       if (!(Number(lo) <= Number(est) && Number(est) <= Number(hi))) continue;
       const measure = measureLabel(m[1]);
-      // Samma värden med olika antal decimaler (0.8 och 0.80) är samma träff
-      const key = `${measure}|${Number(est)}|${Number(lo)}|${Number(hi)}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({
-        id: `e${out.length}`,
+      const start = m.index!;
+      const end = start + m[0].length;
+      const lineStart = text.lastIndexOf("\n", start) + 1;
+      const small = text[lineStart] === SMALL;
+      const lineEnd = text.indexOf("\n", end);
+      const quote = (
+        small
+          ? text.slice(lineStart, lineEnd < 0 ? undefined : lineEnd)
+          : sentenceAround(text, start, end)
+      )
+        .replaceAll(SMALL, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const hit = {
+        id: "",
         page: p.page,
         measure,
         est,
         lo,
         hi,
-        p: m[5] ? `${m[5] === "=" ? "=" : m[5]}${m[6]}` : undefined,
-        quote: sentenceAround(text, m.index!, m.index! + m[0].length),
-      });
+        ci: level,
+        p: m[6] ? `${m[6] === "=" ? "=" : m[6]}${m[7]}` : undefined,
+        quote,
+        small,
+      };
+      // Samma värden med olika antal decimaler (0.8 och 0.80) är samma träff.
+      // Löptexten går före en figur med samma värden.
+      const key = `${measure}|${level}|${Number(est)}|${Number(lo)}|${Number(hi)}`;
+      const i = at.get(key);
+      if (i === undefined) {
+        at.set(key, out.length);
+        out.push(hit);
+      } else if (out[i].small && !small) out[i] = hit;
     }
   }
-  return out;
+  return out.map(({ small: _, ...e }, i) => ({ ...e, id: `e${i}` }));
 }
+
+const SMALL = "\u0001";
 
 /** "0.38" → "0,38" (svenskt decimaltecken i presentationen) */
 const sv = (n: string) => n.replace(".", ",");
@@ -241,7 +306,8 @@ export function effectLabel(e: Effect): string {
   const p = e.p
     ? `; p${e.p.startsWith("=") ? " = " + sv(e.p.slice(1)) : e.p[0] + sv(e.p.slice(1))}`
     : "";
-  return `${e.measure} ${sv(e.est)} (95 % KI ${sv(e.lo)}–${sv(e.hi)})${p}`;
+  const ci = e.ci ? `${e.ci} % KI` : "KI";
+  return `${e.measure} ${sv(e.est)} (${ci} ${sv(e.lo)}–${sv(e.hi)})${p}`;
 }
 
 // --- Studienummer ------------------------------------------------------------
@@ -349,6 +415,8 @@ export function findCaptions(pages: PdfPage[]): Caption[] {
       for (let j = i + 1; j < ls.length && rest.length < 200; j++) {
         const l = ls[j];
         if (Math.abs(l.h - line.h) > line.h * 0.12 || prev.y - l.y > line.h * 2.2) break;
+        // Nytt typsnitt: Lancet har fet rubrik och sedan beskrivningen i brödstil
+        if (line.font && l.font && l.font !== line.font) break;
         // Flera celler på samma höjd under bildtexten: tabellhuvudet har börjat
         const span = line.x1 - line.x0 + 4;
         const cells = ls.filter(
@@ -457,6 +525,21 @@ export function suggestBox(page: PdfPage, cap: Caption): Box {
     l.x0 < c1 - 2;
 
   const a = cap.anchor;
+  const capLine = ls.find((l) => Math.abs(l.y - a.y) < 0.5 && Math.abs(l.x0 - a.x) < 0.5);
+  // Bildtextens block: raden och raderna under den med samma vänsterkant
+  // (även en beskrivning i mindre stil). Blockets bredd visar figurens bredd
+  // när bildtexten är flera rader, t.ex. Lancets figurer till höger om en smal spalt.
+  const block: Line[] = capLine ? [capLine] : [];
+  for (const l of [...ls].filter((l) => l.y < a.y).sort((p, q) => q.y - p.y)) {
+    const last = block[block.length - 1];
+    if (!last || block.length >= 8) break;
+    if (last.y - l.y > Math.max(last.h, l.h) * 2.4) break;
+    // Löptext under bildtexten hör inte till blocket
+    if (Math.abs(l.x0 - a.x) < 4 && !(l.h >= body * 0.95 && l.text.trim().length > 40))
+      block.push(l);
+  }
+  const blockX1 = Math.max(a.x + a.w, ...block.map((l) => l.x1));
+  const multi = block.length >= 2;
   // Bildtexten står på en annan sida (bottomAnchor): figuren fyller sidan
   if (a.h === 0) {
     const bottom = Math.max(a.y, minY - 2);
@@ -466,9 +549,89 @@ export function suggestBox(page: PdfPage, cap: Caption): Box {
   const own = a.x < mid ? left : right;
   const other = a.x < mid ? right : left;
 
-  if (cap.kind === "figure") {
+  // Spaltbredden: typisk bredd på långa rader i normal storlek
+  // (högst en halv sida; breda fotnoter ska inte räknas som spalt)
+  const colW = Math.min(
+    median(
+      ls.filter((l) => l.text.trim().length > 40 && l.h >= body * 0.9).map((l) => l.x1 - l.x0),
+    ) || Infinity,
+    (maxX - minX) / 2 - 8,
+  );
+  const isProse = (l: Line) =>
+    l.text.trim().length > 40 && l.h >= body * 0.9 && l.x1 - l.x0 >= colW * 0.85;
+  // Tabell med bildtexten under (Lancet): under blocket kommer löptext eller
+  // sidans slut, inte tabellrader. Rutan räknas då som för en figur.
+  const footTop = Math.max(page.height * 0.08, minY + 1);
+  const below = ls
+    .filter(
+      (l) =>
+        l.y < a.y - 1 &&
+        l.y > a.y - body * 4 &&
+        l.y > footTop &&
+        l.x1 > a.x + 2 &&
+        l.x0 < Math.max(blockX1, a.x + colW) - 2,
+    )
+    .sort((p, q) => q.y - p.y);
+  // Bildtextens egna fortsättningsrader (samma vänsterkant och storlek) hoppas över
+  let skip = 0;
+  while (
+    skip < below.length &&
+    Math.abs(below[skip].x0 - a.x) < 4 &&
+    Math.abs(below[skip].h - a.h) <= a.h * 0.12
+  )
+    skip++;
+  const under = below.slice(skip);
+  // Tomt under bildtexten räknas bara när bildtexten står längst ned på sidan
+  const tableAbove =
+    cap.kind === "table" &&
+    (under.length === 0 ? a.y - footTop < body * 5 : under.slice(0, 3).some(isProse));
+
+  if (cap.kind === "figure" || tableAbove) return tighten(figureBox());
+
+  // Sista justering: har figuren egna texter (axlar, rader i tabellen) slutar
+  // rutan strax ovanför den översta och räcker till den bredaste. Då kommer
+  // inte tom yta eller sidhuvud med. Bildfigurer utan text lämnas som de är.
+  function tighten(b: Box): Box {
+    const edge = (l: Line) =>
+      (l.y > page.height * 0.93 || l.y < page.height * 0.06) &&
+      l.text.trim().length < 60 &&
+      !/[.)]$/.test(l.text.trim());
+    const inside = ls.filter(
+      (l) =>
+        l.y > b.y &&
+        l.y < b.y + b.h &&
+        l.x0 >= b.x - 2 &&
+        l.x0 < b.x + b.w &&
+        !edge(l) &&
+        !isProse(l),
+    );
+    if (inside.length < 5) return b;
+    const top = Math.max(...inside.map((l) => l.y + l.h)) + 8;
+    const x1 = Math.min(maxX + 2, Math.max(b.x + b.w, ...inside.map((l) => l.x1 + 2)));
+    return { x: b.x, y: b.y, w: x1 - b.x, h: Math.min(b.h, top - b.y) };
+  }
+
+  function figureBox(): Box {
     // Figuren står ovanför bildtexten, upp till närmaste löptext i spalten
     const top = a.y + a.h;
+    if (multi && blockX1 - a.x > (maxX - minX) * 0.3) {
+      // Flerradig bildtext: figuren har bildtextens bredd
+      const cols: [number, number] = [a.x, blockX1];
+      const above = ls.filter(
+        (l) => l.y > top + 1 && isBody(l, cols) && l.x0 >= minX && !(l.x1 < a.x + 2),
+      );
+      const y1 = above.length ? Math.min(...above.map((l) => l.y)) - 2 : maxY + 2;
+      if (y1 - top > page.height * 0.12) {
+        // Figuren kan vara bredare än bildtexten: ta med dess egna texter
+        // (axlar, förklaringar) till höger om bildtextens vänsterkant
+        // Står det löptext till höger i samma höjd är bildtextens bredd gränsen
+        const inRange = (l: Line) => l.y > top && l.y < y1 && l.x0 >= a.x - 4;
+        const besideProse = ls.some((l) => inRange(l) && isProse(l) && l.x0 > blockX1 - 4);
+        const inFig = besideProse ? [] : ls.filter((l) => inRange(l) && !isProse(l));
+        const x1 = Math.min(maxX, Math.max(blockX1, ...inFig.map((l) => l.x1)));
+        return { x: cols[0] - 2, y: top + 1, w: x1 - cols[0] + 4, h: y1 - top - 1 };
+      }
+    }
     const firstBodyAbove = (col: [number, number]) => {
       const ys = ls.filter((l) => l.y > top + 1 && isBody(l, col)).map((l) => l.y);
       return ys.length ? Math.min(...ys) - 2 : maxY + 2;
@@ -522,7 +685,6 @@ export function suggestBox(page: PdfPage, cap: Caption): Box {
   // igen som minst tre långa rader i följd i normal storlek, nästan lika
   // breda som en spalt; tabellrader bryts av cellernas mellanrum och
   // fotnoterna har mindre text.
-  const colW = (maxX - minX) / 2 - 8;
   const looksBody = (l: Line) =>
     l.y < a.y - body &&
     l.text.trim().length > 30 &&
