@@ -209,3 +209,110 @@ describe("analyzePdf", () => {
     expect(r.effects).toEqual([]);
   });
 });
+
+// --- NEJM-format ------------------------------------------------------------------
+
+/** Rader med egen position: [text, x, y, höjd]. */
+function placed(rows: [string, number, number, number?][], n = 1): PdfPage {
+  return {
+    page: n,
+    width: 612,
+    height: 792,
+    items: rows.map(([str, x, y, h = 9]) => ({
+      str,
+      x,
+      y,
+      w: Math.min(str.length * 4.2, 260),
+      h,
+      eol: true,
+    })),
+  };
+}
+
+describe("NEJM", () => {
+  test("avstavning: bindestreck i sammansättningar står kvar", () => {
+    expect(normalize("investigator-assessed progression-\nfree survival")).toBe(
+      "investigator-assessed progression-free survival",
+    );
+    expect(normalize("252 pa-\ntients")).toBe("252 patients");
+  });
+
+  test("citatet börjar inte mitt i ett ord och slutar inte vid (Fig.", () => {
+    const filler = "word ".repeat(140);
+    const p = page([
+      `${filler}hazard ratio for progression or death, 0.46; 95% CI, 0.37 to 0.56) (Fig. S2). Next sentence.`,
+    ]);
+    const [e] = findEffects([p]);
+    expect(e.quote.startsWith("… word")).toBe(true);
+    expect(e.quote.endsWith("(Fig. S2).")).toBe(true);
+  });
+
+  test("Supported by och formulär för jäv", () => {
+    const p = page([
+      "Supported by Shanghai JMT-Bio Technology, with partial support from the National Natural Science Foundation of China.",
+      "Disclosure forms provided by the authors are available with the full text of this article at NEJM.org.",
+    ]);
+    const s = findSections([p]);
+    expect(s.funding?.text.startsWith("Supported by Shanghai JMT-Bio Technology")).toBe(true);
+    expect(s.coi?.text).toContain("Disclosure forms provided by the authors");
+  });
+
+  test("finansiär inom parentes i abstractet när avsnitt saknas", () => {
+    const p = page([
+      "THP among patients with HER2-positive advanced breast cancer. (Funded by Shanghai",
+      "JMT-Bio Technology; ClinicalTrials.gov number, NCT05838066.)",
+    ]);
+    expect(findSections([p]).funding?.text).toBe("Funded by Shanghai JMT-Bio Technology.");
+  });
+
+  test("Figure 2 (facing page): figuren hämtas från uppslagets andra sida", () => {
+    const fig1 = placed([["Figure 1. Screening, Randomization, and Follow-up.", 40, 100]], 5);
+    const figPage = placed(
+      [
+        ["A Progression-free Survival", 40, 740],
+        ["Months since Randomization", 200, 400, 7],
+        ["6", 40, 40],
+      ],
+      6,
+    );
+    const capPage = placed(
+      [
+        [
+          "Figure 2 (facing page). Progression-free Survival, Overall and According to Subgroup.",
+          40,
+          700,
+        ],
+      ],
+      7,
+    );
+    const cap = findCaptions([fig1, figPage, capPage]).find((c) => c.id === "figure2")!;
+    expect(cap.page).toBe(6);
+    expect(cap.text.startsWith("Progression-free Survival")).toBe(true);
+    const box = suggestBox(figPage, cap);
+    // Hela sidan ovanför sidfoten
+    expect(box.y).toBeGreaterThan(40);
+    expect(box.y + box.h).toBeGreaterThan(740);
+  });
+
+  test("tabellens bildtext slutar vid .* och rutan slutar före löptexten", () => {
+    const body = "The current phase 3 trial evaluated a HER2-tar geted bispecific antibody plus";
+    const rows: [string, number, number, number?][] = [
+      ["Table 1. Summary of Efficacy as Assessed by Investigators.* Variable Anbenitamab", 40, 700],
+      ["Complete response", 40, 660, 8],
+      ["17 (3.8)", 300, 660, 8],
+      ["Partial response", 40, 640, 8],
+      ["373 (83.8)", 300, 640, 8],
+      ["* Efficacy analyses were performed in the intention-to-treat population.", 40, 600, 7],
+    ];
+    for (let i = 0; i < 6; i++) {
+      rows.push([body, 40, 520 - i * 12]);
+      rows.push([body, 320, 520 - i * 12]);
+    }
+    const p = placed(rows, 8);
+    const [cap] = findCaptions([p]);
+    expect(cap.text).toBe("Summary of Efficacy as Assessed by Investigators.*");
+    const box = suggestBox(p, cap);
+    expect(box.y).toBeGreaterThan(520);
+    expect(box.y).toBeLessThan(600);
+  });
+});
