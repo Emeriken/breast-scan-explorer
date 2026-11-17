@@ -849,3 +849,91 @@ export function analyzePdf(pages: PdfPage[]): PdfFindings {
     noText: chars < pages.length * 200,
   };
 }
+
+// --- Läsbarhet på bilden ---------------------------------------------------------
+
+/** Textstorlek (pt) på en bild i presentationen som räknas som läsbar. */
+export const READABLE_PT = 9;
+
+/**
+ * Typisk minsta textstorlek (pt) i rutan: undre kvartilen av radernas höjd.
+ * Saknar rutan text (en inklistrad bild) går det inte att mäta: undefined.
+ */
+export function textSize(page: PdfPage, box: Box): number | undefined {
+  const hs = lines(page)
+    .filter(
+      (l) =>
+        l.y > box.y &&
+        l.y < box.y + box.h &&
+        l.x0 >= box.x - 2 &&
+        l.x1 <= box.x + box.w + 2 &&
+        l.h > 3,
+    )
+    .map((l) => l.h)
+    .sort((a, b) => a - b);
+  if (hs.length < 5) return undefined;
+  return hs[Math.floor(hs.length * 0.25)];
+}
+
+export type SplitPlan = {
+  /** Antal bilder figuren delas på (1–3), uppifrån och ned */
+  parts: number;
+  /** Textstorlek (pt) på bilden med den uppdelningen */
+  pt: number;
+  /** Textstorlek (pt) om hela figuren står på en bild */
+  ptWhole: number;
+};
+
+/**
+ * Hur många bilder figuren behöver för läsbar text. Rutans höjd delas i lika
+ * delar; bredden delas aldrig. Färsta antal delar som når READABLE_PT, annars
+ * det som ger störst text (högst 3 delar). `area` är bildytan i tum.
+ */
+export function planSplit(box: Box, textPt: number, area: { w: number; h: number }): SplitPlan {
+  const pt = (k: number) => textPt * Math.min((area.w * 72) / box.w, (area.h * 72) / (box.h / k));
+  const ptWhole = pt(1);
+  for (let k = 1; k <= 3; k++) if (pt(k) >= READABLE_PT) return { parts: k, pt: pt(k), ptWhole };
+  // Inte läsbart ens i tre delar: ta det minsta antal som ger nästan största texten
+  // (en bred figur begränsas av bredden och vinner inget på fler delar)
+  const best = pt(3);
+  const k = [1, 2, 3].find((n) => pt(n) >= best * 0.97) ?? 3;
+  return { parts: k, pt: pt(k), ptWhole };
+}
+
+/**
+ * Var en renderad figur kan delas: rader i bilden utan tryck (`ink[y]` är
+ * antal mörka bildpunkter på rad y). Varje snitt läggs mitt i det tomma band
+ * som ligger närmast en jämn delning, så att ingen tabellrad eller panel
+ * delas. Finns inget tomt band nära någon delning: null.
+ */
+export function findCuts(ink: number[], parts: number): number[] | null {
+  const n = ink.length;
+  if (parts < 2) return [];
+  // Tomma band: minst tre rader i följd utan tryck
+  const bands: [number, number][] = [];
+  for (let y = 0; y < n; ) {
+    if (ink[y] > 0) {
+      y++;
+      continue;
+    }
+    let e = y;
+    while (e < n && ink[e] === 0) e++;
+    if (e - y >= 3) bands.push([y, e]);
+    y = e;
+  }
+  const cuts: number[] = [];
+  const slack = (n / parts) * 0.3;
+  for (let j = 1; j < parts; j++) {
+    const target = (n * j) / parts;
+    let best: number | null = null;
+    for (const [s, e] of bands) {
+      const c = Math.round((s + e) / 2);
+      if (Math.abs(c - target) > slack) continue;
+      if (cuts.length && c <= cuts[cuts.length - 1] + n * 0.1) continue;
+      if (best === null || Math.abs(c - target) < Math.abs(best - target)) best = c;
+    }
+    if (best === null) return null;
+    cuts.push(best);
+  }
+  return cuts;
+}

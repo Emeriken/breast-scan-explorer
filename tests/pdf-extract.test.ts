@@ -8,13 +8,17 @@ import {
   findCaptions,
   findEffects,
   findNcts,
+  findCuts,
   findSections,
   lines,
+  planSplit,
+  textSize,
   normalize,
   suggestBox,
   type PdfPage,
   type PdfTextItem,
 } from "../src/lib/pdf-extract";
+import { inkProfile } from "../src/lib/pdf-read";
 
 /** En sida där varje rad är en textbit, uppifrån och ned. */
 function page(rows: (string | { str: string; x?: number; h?: number })[], n = 1): PdfPage {
@@ -544,5 +548,60 @@ describe("JCO", () => {
     expect(cap.text).toContain("(B) Forest plot");
     const box = suggestBox(p, cap);
     expect(box.y + box.h).toBeGreaterThan(600);
+  });
+});
+
+// --- Läsbarhet och uppdelning --------------------------------------------------
+
+describe("läsbarhet", () => {
+  const AREA = { w: 9, h: 3.77 };
+
+  test("en hel tabellsida delas i tre bilder för läsbar text", () => {
+    // NEJM Tabell 1: 379 × 556 pt med 8 pt text
+    const plan = planSplit({ x: 0, y: 0, w: 379, h: 556 }, 8, AREA);
+    expect(plan.ptWhole).toBeLessThan(5);
+    expect(plan.parts).toBe(3);
+    expect(plan.pt).toBeGreaterThanOrEqual(9);
+  });
+
+  test("en låg tabell står kvar på en bild", () => {
+    expect(planSplit({ x: 0, y: 0, w: 286, h: 158 }, 7, AREA).parts).toBe(1);
+  });
+
+  test("bred figur: inte fler delar än det lönar sig", () => {
+    // Bredden begränsar; tre delar ger inte större text än två
+    const plan = planSplit({ x: 0, y: 0, w: 700, h: 400 }, 6, AREA);
+    expect(plan.parts).toBeLessThan(3);
+  });
+
+  test("textstorlek mäts i rutan; bild utan text ger undefined", () => {
+    const p = page(Array.from({ length: 8 }, (_, i) => ({ str: `Row ${i} 12 (3.4)`, h: 7 })));
+    expect(textSize(p, { x: 40, y: 600, w: 300, h: 200 })).toBe(7);
+    expect(textSize(p, { x: 40, y: 0, w: 300, h: 100 })).toBeUndefined();
+  });
+
+  test("snitten läggs i tomma band nära jämna delar, aldrig genom tryck", () => {
+    // 300 rader: tryck överallt utom band vid 95–104 och 205–214
+    const ink = Array.from({ length: 300 }, (_, y) =>
+      (y >= 95 && y < 105) || (y >= 205 && y < 215) ? 0 : 40,
+    );
+    expect(findCuts(ink, 3)).toEqual([100, 210]);
+    // Inget tomt band nära mitten: går inte att dela i två
+    expect(findCuts(ink, 2)).toBeNull();
+  });
+
+  test("en ram runt figuren hindrar inte snitt", () => {
+    // 20 × 30 bildpunkter: lodräta ramlinjer i kolumn 0 och 19, tryck i två block
+    const w = 20;
+    const h = 30;
+    const dark = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) {
+      dark[y * w] = 1;
+      dark[y * w + w - 1] = 1;
+      if (y < 12 || y >= 18) for (let x = 3; x < 17; x++) dark[y * w + x] = 1;
+    }
+    const ink = inkProfile(dark, w, h);
+    expect(ink.slice(12, 18)).toEqual([0, 0, 0, 0, 0, 0]);
+    expect(findCuts(ink, 2)).toEqual([15]);
   });
 });

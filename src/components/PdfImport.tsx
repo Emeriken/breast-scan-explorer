@@ -12,18 +12,30 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TrialDetails } from "@/components/TrialStudy";
 import type { Article } from "@/lib/articles";
-import type { DeckPdf } from "@/lib/jc-pptx";
+import { FIGURE_AREA_IN, type DeckPdf } from "@/lib/jc-pptx";
 import {
   analyzePdf,
   effectLabel,
+  findCuts,
+  planSplit,
   suggestBox,
+  textSize,
+  type SplitPlan,
   type Box,
   type Caption,
   type Effect,
   type PdfFindings,
   type PdfPage,
 } from "@/lib/pdf-extract";
-import { canvasPng, openPdf, renderPage, toPdfPoint, type PdfDoc } from "@/lib/pdf-read";
+import {
+  canvasPng,
+  inkPerRow,
+  openPdf,
+  renderPage,
+  sliceRows,
+  toPdfPoint,
+  type PdfDoc,
+} from "@/lib/pdf-read";
 import { fetchTrial, type Trial } from "@/lib/trials";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +51,12 @@ const captionName = (c: Caption) => `${CAPTION_NAME[c.kind]} ${c.num}`;
 
 type Loaded = { doc: PdfDoc; pages: PdfPage[]; findings: PdfFindings; fileName: string };
 type FigurePick = { id: string; box: Box };
+
+/** Läsbarhetsplanen för en figur, om den har text att mäta. */
+function splitPlan(page: PdfPage, box: Box): SplitPlan | undefined {
+  const pt = textSize(page, box);
+  return pt ? planSplit(box, pt, FIGURE_AREA_IN) : undefined;
+}
 
 /** Det som behövs för att bygga presentationen, eller null utan PDF. */
 export type PdfDeckSource = () => Promise<DeckPdf>;
@@ -62,6 +80,8 @@ export function PdfImport({
   const [rows, setRows] = useState<{ 1?: string; 2?: string }>({});
   const [figures, setFigures] = useState<FigurePick[]>([]);
   const [boxes, setBoxes] = useState<Record<string, Box>>({});
+  /** Figurer som ska stå hela på en bild trots att texten blir liten */
+  const [whole, setWhole] = useState<Record<string, boolean>>({});
   const [useFunding, setUseFunding] = useState(true);
   const [useCoi, setUseCoi] = useState(true);
   /** Vald studie; null = ingen studie i presentationen */
@@ -159,19 +179,38 @@ export function PdfImport({
       funding,
       coi,
       trials,
-      figures: await Promise.all(
-        chosen.map(async ({ cap, box }) => {
-          const canvas = await renderPage(loaded.doc, cap.page, { scale: 3, box });
-          return {
-            title: captionName(cap),
-            caption: shorten(cap.text, 200),
-            label: captionName(cap).toLowerCase(),
-            png: await canvasPng(canvas),
-            width: canvas.width,
-            height: canvas.height,
-          };
-        }),
-      ),
+      figures: (
+        await Promise.all(
+          chosen.map(async ({ cap, box }) => {
+            const canvas = await renderPage(loaded.doc, cap.page, { scale: 3, box });
+            // För liten text: dela uppifrån och ned i tomrummen mellan rader
+            // eller paneler. Går det inte att dela rent står figuren hel.
+            const plan = whole[cap.id] ? undefined : splitPlan(loaded.pages[cap.page - 1], box);
+            let pieces = [canvas];
+            if (plan && plan.parts > 1) {
+              const ink = inkPerRow(canvas);
+              for (let k = plan.parts; k > 1; k--) {
+                const cuts = findCuts(ink, k);
+                if (cuts) {
+                  pieces = sliceRows(canvas, cuts);
+                  break;
+                }
+              }
+            }
+            const name = captionName(cap);
+            return Promise.all(
+              pieces.map(async (piece, i) => ({
+                title: pieces.length > 1 ? `${name} (${i + 1}/${pieces.length})` : name,
+                caption: shorten(cap.text, 200),
+                label: name.toLowerCase(),
+                png: await canvasPng(piece),
+                width: piece.width,
+                height: piece.height,
+              })),
+            );
+          }),
+        )
+      ).flat(),
     });
     const parts = [
       effects.length && `${effects.length} effektmått`,
@@ -186,6 +225,7 @@ export function PdfImport({
     rows,
     figures,
     boxes,
+    whole,
     useFunding,
     useCoi,
     nct,
@@ -340,6 +380,9 @@ export function PdfImport({
               <TabsContent value="figures" className="mt-4">
                 <FiguresTab
                   doc={loaded.doc}
+                  pages={loaded.pages}
+                  whole={whole}
+                  setWhole={(id, on) => setWhole((w) => ({ ...w, [id]: on }))}
                   captions={f.captions}
                   boxes={boxes}
                   setBox={(id, box) => setBoxes((b) => ({ ...b, [id]: box }))}
@@ -483,8 +526,46 @@ function Thumb({ doc, cap, box }: { doc: PdfDoc; cap: Caption; box: Box }) {
   );
 }
 
+/** Hur stor texten blir på bilden, och om figuren delas på flera bilder. */
+function Readability({
+  plan,
+  whole,
+  setWhole,
+}: {
+  plan: SplitPlan | undefined;
+  whole: boolean;
+  setWhole: (on: boolean) => void;
+}) {
+  const fmt = (pt: number) => `${Math.round(pt)} pt`;
+  if (!plan)
+    return (
+      <p className="text-xs text-muted-foreground">
+        Bild utan text i PDF:en: textstorleken kan inte mätas, står hel på en bild.
+      </p>
+    );
+  if (plan.parts === 1)
+    return <p className="text-xs text-muted-foreground">Text på bilden ≈ {fmt(plan.ptWhole)}.</p>;
+  return (
+    <div className="flex flex-col gap-1 text-xs">
+      <p className={cn(whole ? "text-warn" : "text-muted-foreground")}>
+        Hel på en bild blir texten ≈ {fmt(plan.ptWhole)}.{" "}
+        {whole
+          ? "Svår att läsa."
+          : `Delas i ${plan.parts} bilder, text ≈ ${fmt(plan.pt)}. Snitten läggs mellan rader eller paneler.`}
+      </p>
+      <label className="flex cursor-pointer items-center gap-2 text-muted-foreground">
+        <Checkbox checked={whole} onCheckedChange={(on) => setWhole(on === true)} />
+        Hel på en bild
+      </label>
+    </div>
+  );
+}
+
 function FiguresTab({
   doc,
+  pages,
+  whole,
+  setWhole,
   captions,
   boxes,
   setBox,
@@ -493,6 +574,9 @@ function FiguresTab({
   setPicked,
 }: {
   doc: PdfDoc;
+  pages: PdfPage[];
+  whole: Record<string, boolean>;
+  setWhole: (id: string, on: boolean) => void;
   captions: Caption[];
   boxes: Record<string, Box>;
   setBox: (id: string, box: Box) => void;
@@ -564,6 +648,13 @@ function FiguresTab({
                     ) : null;
                   })()}
                 </p>
+                {i >= 0 && boxes[c.id] && (
+                  <Readability
+                    plan={splitPlan(pages[c.page - 1], boxes[c.id])}
+                    whole={Boolean(whole[c.id])}
+                    setWhole={(on) => setWhole(c.id, on)}
+                  />
+                )}
                 <div className="mt-auto flex items-center justify-between gap-2">
                   <label className="flex cursor-pointer items-center gap-2 text-meta">
                     <Checkbox
