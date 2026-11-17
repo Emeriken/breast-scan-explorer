@@ -15,6 +15,7 @@ import type { Article } from "@/lib/articles";
 import { FIGURE_AREA_IN, type DeckPdf } from "@/lib/jc-pptx";
 import {
   analyzePdf,
+  cutRows,
   effectLabel,
   findCuts,
   planSplit,
@@ -189,8 +190,14 @@ export function PdfImport({
             let pieces = [canvas];
             if (plan && plan.parts > 1) {
               const ink = inkPerRow(canvas);
+              const page = loaded.pages[cap.page - 1];
+              const opts = {
+                tolerance: canvas.width * 0.02,
+                allowed: cutRows(page, box, canvas.height / box.h),
+              };
               for (let k = plan.parts; k > 1; k--) {
-                const cuts = findCuts(ink, k);
+                // Utan text att gå efter: bara helt tomma rader
+                const cuts = findCuts(ink, k, opts.allowed ? opts : {});
                 if (cuts) {
                   pieces = sliceRows(canvas, cuts);
                   break;

@@ -4,6 +4,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   analyzePdf,
+  cutRows,
   effectLabel,
   findCaptions,
   findEffects,
@@ -603,5 +604,84 @@ describe("läsbarhet", () => {
     const ink = inkProfile(dark, w, h);
     expect(ink.slice(12, 18)).toEqual([0, 0, 0, 0, 0, 0]);
     expect(findCuts(ink, 2)).toEqual([15]);
+  });
+});
+
+// --- Annals of Oncology -----------------------------------------------------------
+
+describe("Annals", () => {
+  test("sista raden i spalten nära sidans nederkant är löptext, inte sidfot", () => {
+    const rows: [string, number, number, number, string][] = [];
+    for (let i = 0; i < 20; i++)
+      rows.push([
+        "Ordinary body text that runs across the full column width.",
+        55,
+        300 - i * 12,
+        10,
+        "R",
+      ]);
+    rows.push(["At a median follow-up duration of 22 months, the esti-", 65, 53, 10, "R"]);
+    rows.push(["mated 2-year EFS rate was 89.7% (95% CI 87.4% to 92%) in", 55, 41, 10, "R"]);
+    rows.push([
+      "the camrelizumab group, corresponding to an HR of 0.67 (95% CI 0.34-1.33).",
+      315,
+      720,
+      10,
+      "R",
+    ]);
+    const p = fonted(rows, 5);
+    const [e] = findEffects([p]);
+    expect(e.quote).toContain("the estimated 2-year EFS rate");
+  });
+
+  test("skillnad där värdet står på nästa rad", () => {
+    const p = page([
+      "in the chemotherapy-alone group. The between-group difference",
+      "was 12.6% (95% CI 0.1% to 25.1%), with a one-sided P value of 0.011.",
+    ]);
+    const [e] = findEffects([p]);
+    expect(e.measure).toBe("Skillnad");
+    expect(e.est).toBe("12.6");
+  });
+
+  test("FUNDING och DISCLOSURE i versaler; avsnittet slutar vid REFERENCES", () => {
+    const p = page([
+      "FUNDING",
+      "This work was supported by grants from the National Natural Science Foundation of China.",
+      "DISCLOSURE",
+      "ZP and YX are employees of Jiangsu Hengrui Pharmaceuticals Co., Ltd. All other authors have declared no conflicts of interest.",
+      "REFERENCES",
+      "1. Bianchini G, De Angelis C, Licata L, Gianni L. Treatment landscape of triple-negative breast cancer.",
+    ]);
+    const s = findSections([p]);
+    expect(s.funding?.text.startsWith("This work was supported by grants")).toBe(true);
+    expect(s.coi?.text).toBe(
+      "ZP and YX are employees of Jiangsu Hengrui Pharmaceuticals Co., Ltd. All other authors have declared no conflicts of interest.",
+    );
+  });
+});
+
+describe("snitt efter text och bild", () => {
+  test("snitt tillåts i små glapp mellan textrader, inte inne i en kurvplot", () => {
+    // Rutan 0–400 pt; tabellrader överst (glapp 2 pt), sedan 200 pt plot utan text
+    const rows: [string, number, number, number, string][] = [];
+    for (let i = 0; i < 8; i++) rows.push([`Row label ${i}`, 10, 390 - i * 10, 8, "R"]);
+    rows.push(["Number at risk", 10, 100, 8, "R"]);
+    for (let i = 0; i < 5; i++) rows.push([`${i * 20}`, 10, 300 - i * 40, 8, "R"]); // axelsiffror räknas inte
+    const p = fonted(rows, 1);
+    const allowed = cutRows(p, { x: 0, y: 0, w: 300, h: 400 }, 1)!;
+    expect(allowed[11]).toBe(true); // mellan två tabellrader (rad 0 slutar vid 10, rad 1 börjar vid 12)
+    expect(allowed[200]).toBe(false); // inne i plotten
+  });
+
+  test("ett helt tomt band går före ett band med tunna linjer", () => {
+    // 200 rader: helt tomt vid 80–89, bara en tunn linje vid 98–107
+    const ink = Array.from({ length: 200 }, (_, y) =>
+      y >= 80 && y < 90 ? 0 : y >= 98 && y < 108 ? 2 : 50,
+    );
+    expect(findCuts(ink, 2, { tolerance: 4 })).toEqual([85]);
+    // Utan helt tomt band används det med tunna linjer
+    const ink2 = ink.map((v, y) => (y >= 80 && y < 90 ? 50 : v));
+    expect(findCuts(ink2, 2, { tolerance: 4 })).toEqual([103]);
   });
 });

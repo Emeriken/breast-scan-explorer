@@ -214,7 +214,7 @@ const MEASURE =
   "(?:[Aa]djusted |[Ss]tratified |[Uu]nstratified )?(?:[Hh]azard [Rr]atio|[Oo]dds [Rr]atio|[Rr]isk [Rr]atio|[Rr]elative [Rr]isk|[Rr]ate [Rr]atio|[Ss]ubdistribution [Hh]azard [Rr]atio|aHR|sHR|HR|OR|RR|IRR)";
 const NUM = "(\\d+(?:\\.\\d+)?)";
 const EFFECT_RE = new RegExp(
-  `\\b(${MEASURE})\\b[^\\d\\n]{0,50}?${NUM}\\s*[;,(\\[]?\\s*(?:(\\d{2})\\s*%\\s*)?(?:CI|[Cc]onfidence [Ii]nterval)[^\\d]{0,10}${NUM}\\s*(?:-|to|,)\\s*${NUM}` +
+  `\\b(${MEASURE})\\b[^\\d]{0,50}?${NUM}\\s*[;,(\\[]?\\s*(?:(\\d{2})\\s*%\\s*)?(?:CI|[Cc]onfidence [Ii]nterval)[^\\d]{0,10}${NUM}\\s*(?:-|to|,)\\s*${NUM}` +
     `(?:[^Pp\\d]{0,8}[Pp]\\s*(?:value)?\\s*([<>=≤≥])\\s*(0?\\.\\d+))?`,
   "g",
 );
@@ -224,7 +224,7 @@ const EFFECT_RE = new RegExp(
 // bindestreck, eftersom gränserna kan vara negativa.
 const SNUM = "(-?\\d+(?:\\.\\d+)?)";
 const DIFF_RE = new RegExp(
-  `\\b(?:[Aa]bsolute |[Rr]isk |[Mm]ean )?[Dd]ifference\\b[^\\d\\n-]{0,40}?${SNUM}\\s*(%|percentage points?)?\\s*[;,(\\[]?\\s*(?:(\\d{2})\\s*%\\s*)?(?:CI|[Cc]onfidence [Ii]nterval)[^\\d-]{0,10}${SNUM}%?\\s*(?:to|,)\\s*${SNUM}%?` +
+  `\\b(?:[Aa]bsolute |[Rr]isk |[Mm]ean )?[Dd]ifference\\b[^\\d-]{0,40}?${SNUM}\\s*(%|percentage points?)?\\s*[;,(\\[]?\\s*(?:(\\d{2})\\s*%\\s*)?(?:CI|[Cc]onfidence [Ii]nterval)[^\\d-]{0,10}${SNUM}%?\\s*(?:to|,)\\s*${SNUM}%?` +
     `(?:[^Pp\\d]{0,8}[Pp]\\s*(?:value)?\\s*([<>=≤≥])\\s*(0?\\.\\d+))?`,
   "g",
 );
@@ -292,12 +292,20 @@ export function findEffects(pages: PdfPage[]): Effect[] {
     // så att citatet bara blir den raden och inte axeltexter runt omkring
     // Sidhuvud och sidfot (tidskriftens namn, sidnummer) hör inte till meningarna
     // (kort rad nära kanten som inte avslutar en mening)
+    // En rad i löptextens storlek och nästan en spalts bredd är löptext även
+    // nära kanten (Annals: sista raden i spalten står lågt på sidan)
+    const colW = median(
+      ls
+        .filter((l) => l.text.trim().length > 40 && Math.abs(l.h - body) < 0.5)
+        .map((l) => l.x1 - l.x0),
+    );
     const inBody = ls.filter(
       (l) =>
         !(
           (l.y > p.height * 0.93 || l.y < p.height * 0.06) &&
           l.text.trim().length < 60 &&
-          !/[.)]$/.test(l.text.trim())
+          !/[.)]$/.test(l.text.trim()) &&
+          !(Math.abs(l.h - body) < 0.5 && l.x1 - l.x0 > colW * 0.85)
         ),
     );
     const text = normalize(
@@ -395,7 +403,7 @@ export function findNcts(pages: PdfPage[]): NctHit[] {
 // --- Finansiering och jäv ------------------------------------------------------
 
 const SECTION_RE =
-  /(?:^|\n)\s*(Supported (?:in whole or in part )?by|Funded by|SUPPORT|Funding\/Support|Funding(?: source| statement| information)?|Financial support|Role of the funding source|Declaration of interests?|Competing interests?|Conflicts? of [Ii]nterest(?: [Dd]isclosures?| [Ss]tatement)?|AUTHORS['’] DISCLOSURES OF POTENTIAL CONFLICTS(?:\s+OF INTEREST)?|Disclosures?(?: of potential conflicts of interest)?|Authors?['’]? [Dd]isclosures?|Acknowledge?ments?)\s*[:.]?\s*/g;
+  /(?:^|\n)\s*(Supported (?:in whole or in part )?by|Funded by|SUPPORT|FUNDING|DISCLOSURES?|Funding\/Support|Funding(?: source| statement| information)?|Financial support|Role of the funding source|Declaration of interests?|Competing interests?|Conflicts? of [Ii]nterest(?: [Dd]isclosures?| [Ss]tatement)?|AUTHORS['’] DISCLOSURES OF POTENTIAL CONFLICTS(?:\s+OF INTEREST)?|Disclosures?(?: of potential conflicts of interest)?|Authors?['’]? [Dd]isclosures?|Acknowledge?ments?)\s*[:.]?\s*/g;
 
 function sectionKind(heading: string): "funding" | "coi" | "ack" {
   if (/acknowledg/i.test(heading)) return "ack";
@@ -428,7 +436,11 @@ export function findSections(pages: PdfPage[]): { funding?: SectionHit; coi?: Se
         body = `${m[1]} ${end > 0 ? body.slice(0, end + 1) : body}`;
       }
       // Nästa rubrik i versaler ("DATA SHARING STATEMENT") avslutar avsnittet
-      const next = body.slice(20).search(/(?<=[.)]\s)[A-Z]{3,}(?:\s+[A-Z]{2,}){1,}\b/);
+      const next = body
+        .slice(20)
+        .search(
+          /(?<=[.)]\s)(?:[A-Z]{3,}(?:\s+[A-Z]{2,}){1,}\b|(?:REFERENCES|ACKNOWLEDG[A-Z]*|FUNDING|DISCLOSURES?|CONTRIBUTORS|APPENDIX)\b)/,
+        );
       if (next >= 0) body = body.slice(0, next + 20).trim();
       const cut = body.lastIndexOf(". ", 600);
       if (body.length > 600 && cut > 200) body = body.slice(0, cut + 1);
@@ -901,30 +913,79 @@ export function planSplit(box: Box, textPt: number, area: { w: number; h: number
 }
 
 /**
- * Var en renderad figur kan delas: rader i bilden utan tryck (`ink[y]` är
- * antal mörka bildpunkter på rad y). Varje snitt läggs mitt i det tomma band
- * som ligger närmast en jämn delning, så att ingen tabellrad eller panel
- * delas. Finns inget tomt band nära någon delning: null.
+ * Rader i en renderad ruta där ett snitt är tillåtet: små glapp mellan
+ * textrader (tabellrader, rader i ett forest plot, rutor i ett flödesschema).
+ * Stora ytor utan text, som insidan av en kurvplot, är inte tillåtna; korta
+ * texter som axelsiffror räknas inte som rader. `scale` är bildpunkter per
+ * pt i renderingen. Saknar rutan text: undefined (då avgör bara bilden).
  */
-export function findCuts(ink: number[], parts: number): number[] | null {
+export function cutRows(page: PdfPage, box: Box, scale: number): boolean[] | undefined {
+  const top = box.y + box.h;
+  const spans = lines(page)
+    .filter(
+      (l) =>
+        l.text.trim().length >= 5 &&
+        l.y + l.h > box.y &&
+        l.y < top &&
+        l.x1 > box.x &&
+        l.x0 < box.x + box.w,
+    )
+    .map((l) => [top - (l.y + l.h), top - l.y] as const) // uppifrån, i pt
+    .sort((a, b) => a[0] - b[0]);
+  if (spans.length < 5) return undefined;
+  const lineH = median(spans.map(([a, b]) => b - a));
+  const rows = Math.round(box.h * scale);
+  const allowed = new Array<boolean>(rows).fill(false);
+  // Slå ihop överlappande rader (flera spalter på samma höjd)
+  let end = spans[0][1];
+  for (const [a, b] of spans.slice(1)) {
+    if (a > end && a - end <= lineH * 3)
+      for (let r = Math.ceil(end * scale); r < Math.floor(a * scale) && r < rows; r++)
+        allowed[r] = true;
+    end = Math.max(end, b);
+  }
+  return allowed;
+}
+
+/**
+ * Var en renderad figur kan delas: rader i bilden utan tryck (`ink[y]` är
+ * antal mörka bildpunkter på rad y; `tolerance` tillåter några tunna linjer).
+ * Med `allowed` får snitt bara ligga på tillåtna rader. Varje snitt läggs
+ * mitt i det tomma band som ligger närmast en jämn delning, så att ingen
+ * tabellrad eller panel delas. Finns inget band nära någon delning: null.
+ */
+export function findCuts(
+  ink: number[],
+  parts: number,
+  { tolerance = 0, allowed }: { tolerance?: number; allowed?: boolean[] } = {},
+): number[] | null {
   const n = ink.length;
   if (parts < 2) return [];
-  // Tomma band: minst tre rader i följd utan tryck
-  const bands: [number, number][] = [];
-  for (let y = 0; y < n; ) {
-    if (ink[y] > 0) {
-      y++;
-      continue;
+  // Två sorters band: helt tomma rader var som helst (mellan paneler), och
+  // rader med några tunna linjer där texten tillåter snitt (mellan tabellrader).
+  // Ett helt tomt band går före om det ligger nära en jämn delning.
+  const bandsOf = (blank: (y: number) => boolean) => {
+    const out: [number, number][] = [];
+    for (let y = 0; y < n; ) {
+      if (!blank(y)) {
+        y++;
+        continue;
+      }
+      let e = y;
+      while (e < n && blank(e)) e++;
+      if (e - y >= 3) out.push([y, e]);
+      y = e;
     }
-    let e = y;
-    while (e < n && ink[e] === 0) e++;
-    if (e - y >= 3) bands.push([y, e]);
-    y = e;
-  }
+    return out;
+  };
+  const strict = bandsOf((y) => ink[y] === 0);
+  const loose =
+    tolerance > 0 || allowed
+      ? bandsOf((y) => ink[y] <= tolerance && (!allowed || allowed[y] === true))
+      : [];
   const cuts: number[] = [];
   const slack = (n / parts) * 0.3;
-  for (let j = 1; j < parts; j++) {
-    const target = (n * j) / parts;
+  const pick = (bands: [number, number][], target: number) => {
     let best: number | null = null;
     for (const [s, e] of bands) {
       const c = Math.round((s + e) / 2);
@@ -932,6 +993,11 @@ export function findCuts(ink: number[], parts: number): number[] | null {
       if (cuts.length && c <= cuts[cuts.length - 1] + n * 0.1) continue;
       if (best === null || Math.abs(c - target) < Math.abs(best - target)) best = c;
     }
+    return best;
+  };
+  for (let j = 1; j < parts; j++) {
+    const target = (n * j) / parts;
+    const best = pick(strict, target) ?? pick(loose, target);
     if (best === null) return null;
     cuts.push(best);
   }
