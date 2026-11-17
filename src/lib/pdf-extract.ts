@@ -65,8 +65,24 @@ export function normalize(s: string): string {
     .replace(/([Pp]\s*)¼(\s*[.\d])/g, "$1=$2") // AACR:s typsnitt: "P ¼ 0.035"
     .replace(/[\u2212\u2013\u2014\u2010\u2011]/g, "-")
     .replace(/[\u00a0\u2009\u202f]/g, " ")
-    .replace(/(\w)-\n(\w)/g, "$1$2") // avstavning vid radbrytning
+    .replace(/(\w)-\n(\w+)/g, (_, a: string, b: string) => a + (COMPOUND.test(b) ? "-" : "") + b) // avstavning vid radbrytning
     .replace(/[ \t]+/g, " ");
+}
+
+/**
+ * Efterled som skrivs med bindestreck ("progression-free", "investigator-
+ * assessed"). Bryts raden vid ett sådant bindestreck ska det stå kvar.
+ */
+const COMPOUND =
+  /^(free|assessed|based|related|associated|positive|negative|specific|treated|naive|naïve|line|year|month|week|day|dense|term|grade|level|type|risk|dose|time|matched|adjusted|reported|blind|controlled|label|arm|group|period|up|like|induced|mediated|dependent|independent|targeted|expressing|amplified|mutated|mutant|low|high|ultralow|intensity|weighted|stratified|sensitive|resistant|wide|scale)$/i;
+
+/** Avstavning när rader redan satts ihop med mellanslag: "ri- bociclib" → "ribociclib" */
+export function joinHyphens(s: string): string {
+  return s
+    .replace(/(\p{L})- (\p{Ll}[\p{L}]*)/gu, (_, a: string, b: string) =>
+      COMPOUND.test(b) ? `${a}-${b}` : `${a}${b}`,
+    )
+    .replace(/(\p{L})- (\p{Lu})/gu, "$1-$2"); // "Intention-to- Treat"
 }
 
 /** En textrad, byggd av textbitarnas position (y uppåt, PDF-koordinater). */
@@ -132,13 +148,37 @@ export function pageText(p: PdfPage): string {
     .join("\n");
 }
 
+// Punkt efter dessa är ingen meningsgräns ("(Fig. 2)", "et al.", "vs.")
+const ABBREV = /\b(?:Fig|Figs|Table|Tab|al|vs|No|Ref|Suppl|e\.g|i\.e|approx|ca|cf|Dr|St)\.$/i;
+
+/** Index där meningen slutar i `s` (efter punkten), eller -1. */
+function sentenceEnd(s: string): number {
+  for (const m of s.matchAll(/[.!?](?=\s+[A-Z(]|\s*$)|\n\n/g)) {
+    if (m[0] === "." && ABBREV.test(s.slice(0, m.index! + 1))) continue;
+    return m.index! + 1;
+  }
+  return -1;
+}
+
 function sentenceAround(text: string, start: number, end: number): string {
-  const before = text.slice(Math.max(0, start - 260), start);
-  const after = text.slice(end, end + 260);
-  const s = before.search(/[.!?]\s+[A-Z(][^.!?]*$/);
-  const head = s >= 0 ? before.slice(s + 1) : before;
-  const e = after.search(/\.\s+[A-Z]|\.\s*$|\n\n/);
-  const tail = e >= 0 ? after.slice(0, e + 1) : after;
+  const from = Math.max(0, start - 600);
+  const before = text.slice(from, start);
+  const after = text.slice(end, end + 400);
+  // Sista meningsgränsen före träffen
+  let head = before;
+  let cut = -1;
+  for (const m of before.matchAll(/[.!?]\s+(?=[A-Z(])/g)) {
+    if (m[0][0] === "." && ABBREV.test(before.slice(0, m.index! + 1))) continue;
+    cut = m.index! + m[0].length;
+  }
+  if (cut >= 0) head = before.slice(cut);
+  else if (from > 0) {
+    // Ingen gräns i fönstret: börja vid ett helt ord och markera utelämnandet
+    const w = before.search(/\s\S/);
+    head = "… " + before.slice(w + 1);
+  }
+  const e = sentenceEnd(after);
+  const tail = e >= 0 ? after.slice(0, e) : after;
   return (head + text.slice(start, end) + tail).replace(/\s+/g, " ").trim();
 }
 
@@ -229,12 +269,18 @@ export function findNcts(pages: PdfPage[]): NctHit[] {
 // --- Finansiering och jäv ------------------------------------------------------
 
 const SECTION_RE =
-  /(?:^|\n)\s*(Funding(?: source| statement| information)?|Financial support|Role of the funding source|Declaration of interests?|Competing interests?|Conflicts? of interest(?: disclosures?| statement)?|Disclosures?(?: of potential conflicts of interest)?|Authors?['’]? [Dd]isclosures?|Acknowledge?ments?)\s*[:.]?\s*/g;
+  /(?:^|\n)\s*(Supported by|Funded by|Funding(?: source| statement| information)?|Financial support|Role of the funding source|Declaration of interests?|Competing interests?|Conflicts? of interest(?: disclosures?| statement)?|Disclosures?(?: of potential conflicts of interest)?|Authors?['’]? [Dd]isclosures?|Acknowledge?ments?)\s*[:.]?\s*/g;
 
 function sectionKind(heading: string): "funding" | "coi" | "ack" {
   if (/acknowledg/i.test(heading)) return "ack";
-  return /fund|financial support/i.test(heading) ? "funding" : "coi";
+  return /fund|financial support|supported by/i.test(heading) ? "funding" : "coi";
 }
+
+// NEJM: jävsdeklarationen finns bara som formulär på webben
+const DISCLOSURE_FORMS_RE =
+  /Disclosure forms provided by the authors are available[^.]*\.(?:\s*org\.)?/i;
+// NEJM m.fl.: finansiären inom parentes sist i abstractet
+const FUNDED_INLINE_RE = /\((Funded by [^;)]+)[;)]/;
 
 export function findSections(pages: PdfPage[]): { funding?: SectionHit; coi?: SectionHit } {
   const found: { funding?: SectionHit; coi?: SectionHit; ack?: SectionHit } = {};
@@ -250,6 +296,11 @@ export function findSections(pages: PdfPage[]): { funding?: SectionHit; coi?: Se
         .trim();
       // Bara ett riktigt avsnitt: börjar med versal och är mer än några ord
       if (!/^[A-Z]/.test(body) || body.length < 40) continue;
+      // "Supported by X" är en mening; rubriken hör till texten
+      if (/^(supported|funded) by$/i.test(m[1])) {
+        const end = body.search(/\.\s+[A-Z]/);
+        body = `${m[1]} ${end > 0 ? body.slice(0, end + 1) : body}`;
+      }
       const cut = body.lastIndexOf(". ", 600);
       if (body.length > 600 && cut > 200) body = body.slice(0, cut + 1);
       found[kind] = {
@@ -260,6 +311,17 @@ export function findSections(pages: PdfPage[]): { funding?: SectionHit; coi?: Se
       };
     }
   }
+  if (!found.funding || !found.coi) {
+    for (const p of pages) {
+      const text = normalize(pageText(p)).replace(/\s+/g, " ");
+      const f = FUNDED_INLINE_RE.exec(text);
+      if (!found.funding && f)
+        found.funding = { kind: "funding", page: p.page, heading: "Funded by", text: f[1] + "." };
+      const d = DISCLOSURE_FORMS_RE.exec(text);
+      if (!found.coi && d)
+        found.coi = { kind: "coi", page: p.page, heading: "Disclosure", text: d[0] };
+    }
+  }
   // Utan eget avsnitt står finansieringen ofta i tacksägelsen, om den nämner stöd
   const ack = found.ack && /support|fund|grant/i.test(found.ack.text) ? found.ack : undefined;
   return { funding: found.funding ?? ack, coi: found.coi };
@@ -267,7 +329,8 @@ export function findSections(pages: PdfPage[]): { funding?: SectionHit; coi?: Se
 
 // --- Figurer och tabeller -------------------------------------------------------
 
-const CAPTION_START = /^(Figure|FIGURE|Fig\.?|FIG\.?|Table|TABLE)\s*(\d{1,2})\b\s*([.:|]?)\s*(.*)$/;
+const CAPTION_START =
+  /^(Figure|FIGURE|Fig\.?|FIG\.?|Table|TABLE)\s*(\d{1,2})\b\s*(\((?:facing|previous|next|following|preceding|opposite) page\))?\s*([.:|]?)\s*(.*)$/;
 
 export function findCaptions(pages: PdfPage[]): Caption[] {
   const out: Caption[] = [];
@@ -278,27 +341,49 @@ export function findCaptions(pages: PdfPage[]): Caption[] {
       // En bildtext börjar en egen rad; hänvisningar i löptext gör det sällan
       const m = CAPTION_START.exec(normalize(line.text).trim());
       if (!m) return;
-      let rest = m[4];
-      for (let j = i + 1; j < ls.length && rest.length < 200; j++) rest += " " + ls[j].text;
-      rest = normalize(rest)
-        .replace(/\s+/g, " ")
-        // Avstavning vid radbrytning: "ri- bociclib" → "ribociclib"
-        .replace(/(\p{Ll})- (\p{Ll})/gu, "$1$2")
-        .trim();
+      const elsewhere = m[3];
+      let rest = m[5];
+      // Fortsättningsrader har samma textstorlek och följer tätt; tabellhuvudet
+      // under bildtexten har oftast mindre text och hör inte dit
+      let prev = line;
+      for (let j = i + 1; j < ls.length && rest.length < 200; j++) {
+        const l = ls[j];
+        if (Math.abs(l.h - line.h) > line.h * 0.12 || prev.y - l.y > line.h * 2.2) break;
+        // Flera celler på samma höjd under bildtexten: tabellhuvudet har börjat
+        const span = line.x1 - line.x0 + 4;
+        const cells = ls.filter(
+          (o) => Math.abs(o.y - l.y) < 1 && o.x0 >= line.x0 - 2 && o.x0 < line.x0 + span,
+        );
+        if (cells.length > 1) break;
+        rest += " " + l.text;
+        prev = l;
+      }
+      rest = joinHyphens(normalize(rest).replace(/\s+/g, " ")).trim();
       // En bildtext börjar med versal efter numret (eller "|", ".", ":")
-      if (!m[3] && !/^[A-Z]/.test(rest)) return;
+      if (!m[4] && !/^[A-Z]/.test(rest)) return;
       if (/^(shows?|summari[sz]es|lists|presents|and|or|in|of)\b/i.test(rest)) return;
       const kind = /^t/i.test(m[1]) ? "table" : "figure";
       const key = `${kind}${m[2]}`;
       if (seen.has(key)) return;
       seen.add(key);
-      const dot = rest.search(/\.\s/);
+      // Bildtexten slutar vid första meningen; "Baseline.*" räknas med fotnotstecknet
+      const dot = /\.[*†‡§¶]*(?=\s)/.exec(rest);
+      const end = dot ? dot.index + dot[0].length : -1;
+      const text = (end > 15 && end < 180 ? rest.slice(0, end) : rest.slice(0, 160)).trim();
+      if (elsewhere) {
+        // Figuren står på en annan sida än bildtexten (NEJM: "facing page")
+        const page = otherPage(pages, p.page, elsewhere);
+        if (page) {
+          out.push({ id: key, kind, num: m[2], page: page.page, text, anchor: bottomAnchor(page) });
+          return;
+        }
+      }
       out.push({
         id: key,
         kind,
         num: m[2],
         page: p.page,
-        text: (dot > 15 && dot < 180 ? rest.slice(0, dot + 1) : rest.slice(0, 160)).trim(),
+        text,
         anchor: { x: line.x0, y: line.y, w: Math.max(line.x1 - line.x0, 1), h: line.h },
       });
     });
@@ -311,6 +396,32 @@ export function findCaptions(pages: PdfPage[]): Caption[] {
   return keep.sort((a, b) =>
     a.kind === b.kind ? Number(a.num) - Number(b.num) : a.kind === "figure" ? -1 : 1,
   );
+}
+
+/** Sidan som "(facing page)", "(previous page)" o.d. syftar på. */
+function otherPage(pages: PdfPage[], n: number, phrase: string): PdfPage | undefined {
+  const at = (k: number) => pages.find((p) => p.page === k);
+  if (/previous|preceding/i.test(phrase)) return at(n - 1);
+  if (/next|following/i.test(phrase)) return at(n + 1);
+  // Uppslag: jämna sidor står till vänster, udda till höger. Den andra sidan
+  // i uppslaget, annars grannen med minst löptext.
+  const pair = at(n % 2 ? n - 1 : n + 1);
+  if (pair) return pair;
+  return [at(n - 1), at(n + 1)].find(Boolean);
+}
+
+/**
+ * Ankare för en figur vars bildtext står på en annan sida: en rad längst ned
+ * på figursidan, så att figuren föreslås ovanför den, över hela bredden.
+ */
+function bottomAnchor(page: PdfPage): Caption["anchor"] {
+  const ls = lines(page);
+  const minX = Math.min(...ls.map((l) => l.x0));
+  const maxX = Math.max(...ls.map((l) => l.x1));
+  // Sidfoten (sidnummer, tidskriftens namn) står längst ned och hör inte till figuren
+  const foot = ls.filter((l) => l.y < page.height * 0.08).map((l) => l.y + l.h);
+  const y = foot.length ? Math.max(...foot) + 2 : page.height * 0.06;
+  return { x: minX, y, w: maxX - minX, h: 0 };
 }
 
 function median(xs: number[]): number {
@@ -346,6 +457,11 @@ export function suggestBox(page: PdfPage, cap: Caption): Box {
     l.x0 < c1 - 2;
 
   const a = cap.anchor;
+  // Bildtexten står på en annan sida (bottomAnchor): figuren fyller sidan
+  if (a.h === 0) {
+    const bottom = Math.max(a.y, minY - 2);
+    return { x: minX - 2, y: bottom, w: maxX - minX + 4, h: maxY + 2 - bottom };
+  }
   const spansBoth = a.w > (maxX - minX) * 0.55 || (a.x < mid - 20 && a.x + a.w > mid + 20);
   const own = a.x < mid ? left : right;
   const other = a.x < mid ? right : left;
@@ -402,14 +518,49 @@ export function suggestBox(page: PdfPage, cap: Caption): Box {
     }
     return { x: cols[0] - 2, y: top + 1, w: cols[1] - cols[0] + 4, h: Math.max(20, y1 - top - 1) };
   }
-  // Tabell: från rubriken nedåt till nästa stycke löptext
+  // Tabell: från rubriken nedåt till första stycket löptext. Löptext känns
+  // igen som minst tre långa rader i följd i normal storlek, nästan lika
+  // breda som en spalt; tabellrader bryts av cellernas mellanrum och
+  // fotnoterna har mindre text.
+  const colW = (maxX - minX) / 2 - 8;
+  const looksBody = (l: Line) =>
+    l.y < a.y - body &&
+    l.text.trim().length > 30 &&
+    l.h >= body * 0.9 &&
+    l.x1 - l.x0 >= colW * 0.85;
+  // Bara löptext i bildtextens egen spalt (eller båda, om den går över båda)
   const cols: [number, number] = spansBoth ? [minX, maxX] : own;
-  const below = ls.filter((l) => l.y < a.y - body * 2 && isBody(l, cols, 70));
-  const yEnd = below.length ? Math.max(...below.map((l) => l.y + l.h)) + 2 : minY - 2;
+  const cand = ls
+    .filter((l) => looksBody(l) && l.x1 > cols[0] + 2 && l.x0 < cols[1] - 2)
+    .sort((p, q) => q.y - p.y);
+  const step = body * 1.6;
+  // Början på ett stycke: minst två rader till strax under, i samma spalt
+  const starts = cand.filter(
+    (l) =>
+      cand.filter((o) => Math.abs(o.x0 - l.x0) < 6 && o.y < l.y - 1 && o.y > l.y - 2.5 * step)
+        .length >= 2,
+  );
+  const yEnd = starts.length ? Math.max(...starts.map((l) => l.y + l.h)) + 2 : minY - 2;
+  // Bredden efter tabellens eget innehåll. Står det löptext i den andra
+  // spalten bredvid tabellen hör tabellen bara till den egna spalten.
+  const beside =
+    !spansBoth &&
+    ls.some(
+      (l) => l.y > yEnd && l.y < a.y && looksBody(l) && l.x0 >= other[0] - 2 && l.x0 < other[1],
+    );
+  const inside = ls.filter(
+    (l) =>
+      l.y > yEnd &&
+      l.y < a.y + a.h &&
+      !looksBody(l) &&
+      (!beside || (l.x1 > own[0] + 2 && l.x0 < own[1] - 2)),
+  );
+  const x0 = Math.min(a.x, ...inside.map((l) => l.x0));
+  const x1 = Math.max(a.x + a.w, ...inside.map((l) => l.x1));
   return {
-    x: cols[0] - 2,
+    x: Math.max(minX, x0) - 2,
     y: yEnd,
-    w: cols[1] - cols[0] + 4,
+    w: Math.min(maxX, x1) - Math.max(minX, x0) + 4,
     h: Math.max(20, a.y + a.h + 2 - yEnd),
   };
 }
