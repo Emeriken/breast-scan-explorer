@@ -79,7 +79,10 @@ export function normalize(s: string): string {
     .replace(/([Pp]\s*)¼(\s*[.\d])/g, "$1=$2") // AACR:s typsnitt: "P ¼ 0.035"
     .replace(/[\u2212\u2013\u2014\u2010\u2011]/g, "-")
     .replace(/[\u00a0\u2009\u202f]/g, " ")
-    .replace(/(\w)-\n(\w+)/g, (_, a: string, b: string) => a + (COMPOUND.test(b) ? "-" : "") + b) // avstavning vid radbrytning
+    .replace(
+      /(\w)-\n(\w+)/g,
+      (_, a: string, b: string) => a + (COMPOUND.test(b) || /^[A-Z]/.test(b) ? "-" : "") + b,
+    ) // avstavning vid radbrytning
     .replace(/[ \t]+/g, " ");
 }
 
@@ -191,8 +194,11 @@ function sentenceAround(text: string, start: number, end: number): string {
   // Sista meningsgränsen före träffen
   let head = before;
   let cut = -1;
-  // Referensnummer efter punkten hör till meningen före: "considered. 18,19 The"
-  for (const m of before.matchAll(/[.!?](?:\s*\d{1,3}(?:[,-]\s?\d{1,3})*)?\s+(?=[A-Z(])/g)) {
+  // Referensnummer efter punkten hör till meningen före: "considered. 18,19 The".
+  // Inte en decimal: "HR, 0.89 (95% CI" är ingen meningsgräns.
+  for (const m of before.matchAll(
+    /[.!?]\s+(?=[A-Z(])|(?<!\d)[.!?]\s*\d{1,3}(?:[,-]\s?\d{1,3})*\s+(?=[A-Z])/g,
+  )) {
     if (m[0][0] === "." && ABBREV.test(before.slice(0, m.index! + 1))) continue;
     cut = m.index! + m[0].length;
   }
@@ -202,6 +208,11 @@ function sentenceAround(text: string, start: number, end: number): string {
     const w = before.search(/\s\S/);
     head = "… " + before.slice(w + 1);
   }
+  // Sidan börjar mitt i en mening (den började på förra sidan): markera det
+  else if (
+    !/^\s*(?:[A-Z][a-z]|[A-Z]{2,}|[A-Z]\s|\([A-Z]|\d|["“])/.test(head + text.slice(start, end))
+  )
+    head = "… " + head.trimStart();
   const e = sentenceEnd(after);
   const tail = e >= 0 ? after.slice(0, e) : after;
   return (head + text.slice(start, end) + tail).replace(/\s+/g, " ").trim();
@@ -487,11 +498,15 @@ export function findCaptions(pages: PdfPage[]): Caption[] {
       // Fortsättningsrader har samma textstorlek och följer tätt; tabellhuvudet
       // under bildtexten har oftast mindre text och hör inte dit
       let prev = line;
+      // Typsnittet för bildtextens text. Står bara "Figure 1." på raden (CCR:
+      // fet etikett, texten på raden under) gäller nästa rads typsnitt.
+      let textFont = rest.trim() ? line.font : undefined;
       for (let j = i + 1; j < ls.length && rest.length < 200; j++) {
         const l = ls[j];
         if (Math.abs(l.h - line.h) > line.h * 0.12 || prev.y - l.y > line.h * 2.2) break;
         // Nytt typsnitt: Lancet har fet rubrik och sedan beskrivningen i brödstil
-        if (line.font && l.font && l.font !== line.font) break;
+        if (textFont && l.font && l.font !== textFont) break;
+        textFont ??= l.font;
         // Flera celler på samma höjd under bildtexten: tabellhuvudet har börjat
         const span = line.x1 - line.x0 + 4;
         const cells = ls.filter(
@@ -510,8 +525,13 @@ export function findCaptions(pages: PdfPage[]): Caption[] {
       if (seen.has(key)) return;
       seen.add(key);
       // Bildtexten slutar vid första meningen; "Baseline.*" räknas med fotnotstecknet
-      const dot = /\.[*†‡§¶]*(?=\s)/.exec(rest);
-      const end = dot ? dot.index + dot[0].length : -1;
+      // Första punkten som avslutar en mening: inte "vs." eller "Fig."
+      let end = -1;
+      for (const d of rest.matchAll(/\.[*†‡§¶]*(?=\s)/g)) {
+        if (ABBREV.test(rest.slice(0, d.index + 1))) continue;
+        end = d.index + d[0].length;
+        break;
+      }
       // Börjar bildtexten med en panel ("(A) Forest plot ...") räcker inte första meningen
       const panels = /^\([A-Z]\)/.test(rest);
       const text = (
@@ -904,6 +924,8 @@ export type SplitPlan = {
 export function planSplit(box: Box, textPt: number, area: { w: number; h: number }): SplitPlan {
   const pt = (k: number) => textPt * Math.min((area.w * 72) / box.w, (area.h * 72) / (box.h / k));
   const ptWhole = pt(1);
+  // Nästan läsbar hel: en uppdelning vinner för lite
+  if (ptWhole >= READABLE_PT * 0.9) return { parts: 1, pt: ptWhole, ptWhole };
   for (let k = 1; k <= 3; k++) if (pt(k) >= READABLE_PT) return { parts: k, pt: pt(k), ptWhole };
   // Inte läsbart ens i tre delar: ta det minsta antal som ger nästan största texten
   // (en bred figur begränsas av bredden och vinner inget på fler delar)
