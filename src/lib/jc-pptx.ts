@@ -1,4 +1,5 @@
 import type { Article } from "@/lib/articles";
+import { gradeLevel, gradeLines, type Grade } from "@/lib/grade";
 import { formatPubDate, pmidFromUrl } from "@/lib/journals";
 import { authorLine } from "@/lib/regulatory";
 import { trialNoteLines, type ArticleTrials } from "@/lib/trials";
@@ -66,6 +67,8 @@ export type DeckInput = {
   pdf?: DeckPdf;
   /** Checklistans text och valda meningar */
   prep?: DeckPrep;
+  /** Presentatörens förenklade GRADE-bedömning; med bara när alla domäner är bedömda */
+  grade?: Grade;
 };
 
 /** Val ur artikelns PDF. Allt är bekräftat av presentatören. */
@@ -216,6 +219,8 @@ function swedishDate(iso: string): string {
 /** Allt som ska in i mallen, som markör → text. Ren funktion, testbar utan webbläsare. */
 export function deckContent(input: DeckInput): Record<string, Value> {
   const { article: a, area, presenter, date, abstract, rubric, pdf, prep } = input;
+  const grade = input.grade && gradeLevel(input.grade).complete ? input.grade : undefined;
+  const gl = grade ? gradeLines(grade) : undefined;
   // Presentatörens egen text: en rad per rad i fältet
   const own = (field: PrepField, size?: number): Line[] =>
     (prep?.texts[field] ?? "")
@@ -404,6 +409,13 @@ export function deckContent(input: DeckInput): Record<string, Value> {
       ...(interventional && own("overforbarhet").length
         ? [bold("Överförbarhet"), ...own("overforbarhet")]
         : []),
+      ...(gl
+        ? [
+            bold("Tillförlitlighet, förenklad GRADE (presentatörens bedömning)"),
+            { text: gl.summary },
+            ...gl.reasons.map((text) => ({ text, size: 1100 })),
+          ]
+        : []),
       ...(quotes("conclusion").length
         ? [bold("Författarnas slutsats"), ...quote("conclusion", 1200, 260)]
         : []),
@@ -525,6 +537,15 @@ export function deckContent(input: DeckInput): Record<string, Value> {
   ];
   c.NOTES_7 = [
     { text: "Skilj mellan vad studien visar och din egen bedömning." },
+    ...(gl
+      ? [
+          { text: "" },
+          {
+            text: `Förenklad GRADE-bedömning av presentatören, ${gl.summary}. En enskild studie; samstämmighet och publikationsbias går oftast inte att bedöma.`,
+          },
+          ...gl.all.map((text) => ({ text: `· ${text}` })),
+        ]
+      : []),
     ...fullQuotes("conclusion"),
   ];
   c.NOTES_8 = [{ text: "En eller två frågor räcker. Ställ dem öppet." }];

@@ -71,8 +71,11 @@ export function PdfImport({
   article,
   onChange,
   onPassages,
+  onPrimary,
 }: {
   article: Article;
+  /** Det primära effektmått presentatören valt, som etikett ("HR 0,55 (95 % KI 0,38–0,77)") */
+  onPrimary?: (label: string | null) => void;
   /** Meningar ur PDF:en till checklistan; null när ingen PDF är inläst */
   onPassages?: (passages: Passage[] | null) => void;
   /** Anropas när valen ändras; null när ingen PDF är vald */
@@ -164,6 +167,7 @@ export function PdfImport({
   useEffect(() => {
     if (!loaded) {
       onChange(null, null);
+      onPrimary?.(null);
       return;
     }
     const f = loaded.findings;
@@ -250,6 +254,7 @@ export function PdfImport({
       (funding || coi) && "finansiering och jäv",
     ].filter(Boolean);
     onChange(source, parts.length ? parts.join(" · ") : null);
+    onPrimary?.(effects.find((e) => e.row === 1)?.label ?? null);
   }, [
     loaded,
     rows,
@@ -264,6 +269,7 @@ export function PdfImport({
     article.trials,
     articleStudies,
     onChange,
+    onPrimary,
   ]);
 
   const f = loaded?.findings;
