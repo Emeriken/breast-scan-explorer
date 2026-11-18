@@ -184,3 +184,24 @@ export function sliceRows(canvas: HTMLCanvasElement, cuts: number[]): HTMLCanvas
     return part;
   });
 }
+
+/**
+ * En del av en delad tabell med tabellhuvudet överst: rad 0 till `headerEnd`
+ * ur hela bilden, ett litet mellanrum och sedan delen.
+ */
+export function withHeader(
+  whole: HTMLCanvasElement,
+  headerEnd: number,
+  part: HTMLCanvasElement,
+): HTMLCanvasElement {
+  const gap = Math.round(headerEnd * 0.08) + 6;
+  const out = document.createElement("canvas");
+  out.width = whole.width;
+  out.height = headerEnd + gap + part.height;
+  const ctx = out.getContext("2d")!;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.drawImage(whole, 0, 0, whole.width, headerEnd, 0, 0, whole.width, headerEnd);
+  ctx.drawImage(part, 0, headerEnd + gap);
+  return out;
+}

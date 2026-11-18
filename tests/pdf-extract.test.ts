@@ -12,7 +12,9 @@ import {
   findCuts,
   findSections,
   lines,
+  pixelRows,
   planSplit,
+  tableHeader,
   textSize,
   normalize,
   suggestBox,
@@ -723,5 +725,78 @@ describe("CCR", () => {
   test("nästan läsbar hel figur delas inte", () => {
     // 8,5 pt hel: över 90 % av gränsen
     expect(planSplit({ x: 0, y: 0, w: 482, h: 224 }, 7, { w: 9, h: 3.77 }).parts).toBe(1);
+  });
+});
+
+// --- Tabellhuvud och rubrikrader vid snitt --------------------------------------
+
+describe("tabellhuvud och rubrikrader", () => {
+  // Tabell i rutan 0–400 pt: bildtext, huvud i två rader, grupprubrik, datarader
+  function table(): PdfPage {
+    const rows: [string, number, number, number, string][] = [
+      ["Table 1. Baseline characteristics", 10, 390, 8, "B"],
+      ["Patients, No. (%)", 200, 376, 7, "R"],
+      ["Characteristic", 10, 364, 7, "R"],
+      ["Fovinaciclib (n = 208)", 200, 364, 7, "R"],
+      ["Placebo (n = 209)", 300, 364, 7, "R"],
+      ["Sex", 10, 350, 7, "R"],
+      ["Female", 20, 338, 7, "R"],
+      ["208 (100)", 200, 338, 7, "R"],
+      ["209 (100)", 300, 338, 7, "R"],
+      ["gBRCA status", 10, 200, 7, "R"],
+      ["Mutated", 20, 188, 7, "R"],
+      ["31 (10.5)", 200, 188, 7, "R"],
+      ["14 (15.2)", 300, 188, 7, "R"],
+    ];
+    return fonted(rows, 1);
+  }
+  const box = { x: 0, y: 0, w: 400, h: 400 };
+
+  test("huvudet slutar efter sista raden med flera celler före första dataraden", () => {
+    // "Characteristic | Fovinaciclib (n = 208) | Placebo (n = 209)" slutar 43 pt
+    // under rutans överkant; grupprubriken "Sex" (43 pt ned) hör inte till huvudet
+    const end = tableHeader(table(), box)!;
+    expect(end).toBeGreaterThan(36);
+    expect(end).toBeLessThan(43);
+  });
+
+  test("en ensam vänsterställd rubrikrad märks, en datarad inte", () => {
+    const rows = pixelRows(table(), box, 1);
+    const at = (t: number) => rows.find((r) => r.top <= t && r.bottom >= t)!;
+    expect(at(195).heading).toBe(true); // gBRCA status
+    expect(at(207).heading).toBe(false); // Mutated 31 (10.5) …
+  });
+
+  test("snittet flyttas upp förbi en rubrikrad som annars står sist", () => {
+    // 400 rader: tryck på textraderna, tomt däremellan
+    const rows = pixelRows(table(), box, 1);
+    const ink = Array.from({ length: 400 }, (_, y) =>
+      rows.some((r) => y >= r.top && y < r.bottom) ? 30 : 0,
+    );
+    // Utan rader hamnar snittet närmast mitten, under "gBRCA status"
+    const plain = findCuts(ink, 2)![0];
+    expect(plain).toBeGreaterThan(200);
+    // Med rader står snittet ovanför rubriken
+    const moved = findCuts(ink, 2, { rows })![0];
+    expect(moved).toBeLessThan(193);
+  });
+});
+
+describe("uppdelning med upprepat huvud", () => {
+  test("planen räknar med huvudet på varje del", () => {
+    const box = { x: 0, y: 0, w: 486, h: 449 };
+    const area = { w: 9, h: 3.77 };
+    // Utan huvud räcker två delar; med ett 80 pt högt huvud på varje del behövs tre
+    expect(planSplit(box, 7.47, area).parts).toBe(2);
+    expect(planSplit(box, 7.47, area, 80).parts).toBe(3);
+  });
+
+  test("snitten delar raderna under huvudet jämnt", () => {
+    // 1000 rader, huvud 0–200, tomma band var tionde rad
+    const ink = Array.from({ length: 1000 }, (_, y) => (y % 10 < 3 ? 0 : 20));
+    const [c1, c2] = findCuts(ink, 3, { start: 200 })!;
+    // Delar om ungefär 267 rader under huvudet, inte 333 från bildens överkant
+    expect(Math.abs(c1 - 467)).toBeLessThan(10);
+    expect(Math.abs(c2 - 733)).toBeLessThan(10);
   });
 });

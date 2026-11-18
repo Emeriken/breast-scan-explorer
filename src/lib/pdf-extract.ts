@@ -921,8 +921,16 @@ export type SplitPlan = {
  * delar; bredden delas aldrig. Färsta antal delar som når READABLE_PT, annars
  * det som ger störst text (högst 3 delar). `area` är bildytan i tum.
  */
-export function planSplit(box: Box, textPt: number, area: { w: number; h: number }): SplitPlan {
-  const pt = (k: number) => textPt * Math.min((area.w * 72) / box.w, (area.h * 72) / (box.h / k));
+export function planSplit(
+  box: Box,
+  textPt: number,
+  area: { w: number; h: number },
+  /** Tabellhuvudets höjd (pt), som upprepas på varje del */
+  head = 0,
+): SplitPlan {
+  const pt = (k: number) =>
+    textPt *
+    Math.min((area.w * 72) / box.w, (area.h * 72) / (k === 1 ? box.h : head + (box.h - head) / k));
   const ptWhole = pt(1);
   // Nästan läsbar hel: en uppdelning vinner för lite
   if (ptWhole >= READABLE_PT * 0.9) return { parts: 1, pt: ptWhole, ptWhole };
@@ -979,7 +987,18 @@ export function cutRows(page: PdfPage, box: Box, scale: number): boolean[] | und
 export function findCuts(
   ink: number[],
   parts: number,
-  { tolerance = 0, allowed }: { tolerance?: number; allowed?: boolean[] } = {},
+  {
+    tolerance = 0,
+    allowed,
+    rows,
+    start = 0,
+  }: {
+    tolerance?: number;
+    allowed?: boolean[];
+    rows?: PixelRow[];
+    /** Rader överst som upprepas på varje del (tabellhuvud): resten delas jämnt */
+    start?: number;
+  } = {},
 ): number[] | null {
   const n = ink.length;
   if (parts < 2) return [];
@@ -1006,7 +1025,7 @@ export function findCuts(
       ? bandsOf((y) => ink[y] <= tolerance && (!allowed || allowed[y] === true))
       : [];
   const cuts: number[] = [];
-  const slack = (n / parts) * 0.3;
+  const slack = ((n - start) / parts) * 0.3;
   const pick = (bands: [number, number][], target: number) => {
     let best: number | null = null;
     for (const [s, e] of bands) {
@@ -1018,10 +1037,101 @@ export function findCuts(
     return best;
   };
   for (let j = 1; j < parts; j++) {
-    const target = (n * j) / parts;
-    const best = pick(strict, target) ?? pick(loose, target);
+    const target = start + ((n - start) * j) / parts;
+    let best = pick(strict, target) ?? pick(loose, target);
     if (best === null) return null;
+    // Står en ensam rubrikrad närmast ovanför snittet flyttas snittet upp
+    // förbi den, så att rubriken följer med raderna den hör till
+    if (rows) {
+      const above = rows.filter((r) => r.bottom <= best!).at(-1);
+      if (above?.heading) {
+        const h = above.bottom - above.top;
+        const prev = rows.filter((r) => r.bottom <= above.top).at(-1);
+        const floor = Math.max(prev ? prev.bottom : 0, above.top - h * 4);
+        // Mitt i den del av ett tomt band som ligger strax ovanför rubriken
+        const moved = [...strict, ...loose]
+          .map(([s, e]) => [Math.max(s, floor), Math.min(e, above.top)])
+          .filter(([s, e]) => e - s >= 3)
+          .map(([s, e]) => Math.round((s + e) / 2))
+          .filter((c) => !cuts.length || c > cuts.at(-1)! + n * 0.1)
+          .sort((a, b) => b - a)[0];
+        if (moved !== undefined) best = moved;
+      }
+    }
     cuts.push(best);
   }
   return cuts;
+}
+
+// --- Rader i en ruta: rubrikrader och tabellhuvud ---------------------------------
+
+type BoxRow = { top: number; bottom: number; cells: Line[] };
+
+/** Textrader i rutan, uppifrån, med cellerna på samma höjd sammanförda. Mått i pt från rutans överkant. */
+function boxRows(page: PdfPage, box: Box): BoxRow[] {
+  const top = box.y + box.h;
+  const ls = lines(page)
+    .filter(
+      (l) =>
+        l.text.trim() && l.y > box.y && l.y + l.h < top + 1 && l.x1 > box.x && l.x0 < box.x + box.w,
+    )
+    .sort((a, b) => b.y - a.y || a.x0 - b.x0);
+  const rows: BoxRow[] = [];
+  for (const l of ls) {
+    const t = top - (l.y + l.h);
+    const b = top - l.y;
+    const last = rows[rows.length - 1];
+    // Samma rad om höjderna överlappar till mer än hälften
+    if (last && Math.min(last.bottom, b) - Math.max(last.top, t) > l.h * 0.5) {
+      last.cells.push(l);
+      last.top = Math.min(last.top, t);
+      last.bottom = Math.max(last.bottom, b);
+    } else rows.push({ top: t, bottom: b, cells: [l] });
+  }
+  return rows;
+}
+
+/** Mest siffror: "389 (87.4)", "0.93 (0.88–0.98)", "<0.001". */
+const numeric = (s: string) => {
+  const t = s.replace(/\s+/g, "");
+  return t.length > 0 && (t.match(/\d/g)?.length ?? 0) / t.length >= 0.5;
+};
+
+/**
+ * En ensam rubrikrad: kort, utan siffror och utan värden bredvid
+ * ("gBRCA status", panelbokstäverna "E  F", "N at risk"). Den hör ihop med
+ * raderna under sig och ska inte stå sist före ett snitt.
+ */
+const isHeading = (r: BoxRow) => {
+  const text = r.cells.map((c) => c.text.trim()).join(" ");
+  return text.length <= 30 && !/\d/.test(text);
+};
+
+export type PixelRow = { top: number; bottom: number; heading: boolean };
+
+/** Rutans textrader i bildpunktsrader (`scale` bildpunkter per pt), för findCuts. */
+export function pixelRows(page: PdfPage, box: Box, scale: number): PixelRow[] {
+  return boxRows(page, box).map((r) => ({
+    top: Math.floor(r.top * scale),
+    bottom: Math.ceil(r.bottom * scale),
+    // Vänsterställd: en axeltitel ("Months") står centrerad och är ingen rubrik
+    heading: isHeading(r) && r.cells[0].x0 - box.x < box.w * 0.12,
+  }));
+}
+
+/**
+ * Tabellhuvudets nederkant i pt från rutans överkant: raderna med flera
+ * celler ovanför första dataraden (en etikett och minst två siffervärden).
+ * Ensamma grupprubriker ("Age") före första dataraden räknas inte till
+ * huvudet. Hittas inget huvud: undefined.
+ */
+export function tableHeader(page: PdfPage, box: Box): number | undefined {
+  const rows = boxRows(page, box);
+  const first = rows.findIndex((r) => r.cells.slice(1).filter((c) => numeric(c.text)).length >= 2);
+  if (first <= 0) return undefined;
+  let last = -1;
+  for (let i = 0; i < first; i++) if (rows[i].cells.length >= 2) last = i;
+  if (last < 0) return undefined;
+  // Mitt i glappet till nästa rad
+  return (rows[last].bottom + rows[last + 1].top) / 2;
 }
