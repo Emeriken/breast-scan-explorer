@@ -23,6 +23,7 @@ import {
   suggestBox,
   tableHeader,
   textSize,
+  type Passage,
   type SplitPlan,
   type Box,
   type Caption,
@@ -69,8 +70,11 @@ export type PdfDeckSource = () => Promise<DeckPdf>;
 export function PdfImport({
   article,
   onChange,
+  onPassages,
 }: {
   article: Article;
+  /** Meningar ur PDF:en till checklistan; null när ingen PDF är inläst */
+  onPassages?: (passages: Passage[] | null) => void;
   /** Anropas när valen ändras; null när ingen PDF är vald */
   onChange: (source: PdfDeckSource | null, summary: string | null) => void;
 }) {
@@ -151,6 +155,10 @@ export function PdfImport({
       live = false;
     };
   }, [nct, fromArticle]);
+
+  useEffect(() => {
+    onPassages?.(loaded ? loaded.findings.passages : null);
+  }, [loaded, onPassages]);
 
   // Meddela förälderns PowerPoint-del när valen ändras
   useEffect(() => {
