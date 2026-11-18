@@ -685,3 +685,43 @@ describe("snitt efter text och bild", () => {
     expect(findCuts(ink2, 2, { tolerance: 4 })).toEqual([103]);
   });
 });
+
+// --- Clinical Cancer Research -----------------------------------------------------
+
+describe("CCR", () => {
+  test('etikett ensam på raden: bildtexten är nästa rad, och "vs." avslutar inte', () => {
+    const p = fonted([
+      ["Figure 1.", 53, 133, 7, "Bold"],
+      ["Effect of avelumab vs. observation in TIL-defined groups. A, DDFS in", 53, 124, 7, "Reg"],
+      ["patients with high BSL-TILs.", 53, 115, 7, "Reg"],
+    ]);
+    expect(findCaptions([p])[0].text).toBe(
+      "Effect of avelumab vs. observation in TIL-defined groups.",
+    );
+  });
+
+  test("decimal före parentes är ingen meningsgräns", () => {
+    const p = page([
+      "At a median follow-up of 52 months, the effect was consistent [DFS: HR, 0.89 (95% CI, 0.63-1.25);",
+      "DDFS: HR, 0.75 (95% CI, 0.52-1.08)].",
+    ]);
+    const [, ddfs] = findEffects([p]);
+    expect(ddfs.quote.startsWith("At a median follow-up")).toBe(true);
+  });
+
+  test("citat som börjar mitt i en mening (från förra sidan) markeras med …", () => {
+    const p = page([
+      "B; Supplementary Fig. S4), there was a benefit (unadjusted HR, 0.31 (95% CI, 0.11-0.87)).",
+    ]);
+    expect(findEffects([p])[0].quote.startsWith("… B; Supplementary")).toBe(true);
+  });
+
+  test("bindestreck före versal står kvar vid radbrytning", () => {
+    expect(normalize("BSL-\nTILs had a limited impact")).toBe("BSL-TILs had a limited impact");
+  });
+
+  test("nästan läsbar hel figur delas inte", () => {
+    // 8,5 pt hel: över 90 % av gränsen
+    expect(planSplit({ x: 0, y: 0, w: 482, h: 224 }, 7, { w: 9, h: 3.77 }).parts).toBe(1);
+  });
+});
