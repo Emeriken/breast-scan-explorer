@@ -1151,7 +1151,9 @@ export type PassageKind =
   | "safety"
   | "strengths"
   | "limitations"
-  | "conclusion";
+  | "conclusion"
+  | "masking"
+  | "analysis";
 
 /** En mening eller ett stycke ur PDF:en, ordagrant, med sidnummer. */
 export type Passage = { id: string; kind: PassageKind; page: number; text: string };
@@ -1257,6 +1259,11 @@ const PASSAGE_RE: Record<PassageKind, RegExp> = {
   limitations:
     /\b(?:(?:this|our|the present|the current) (?:study|trial|analysis|work)\b[^.]*\blimitations?|limitations? (?:of|to|in) (?:this|our|the present|the current)\b|(?:several|some|certain|potential|important|a few|other) limitations|(?:a|one|another|the main|a major|a key) limitation|limitations (?:include|warrant|should)|^Limitations\b)/i,
   conclusion: /^(?:In conclusion|To conclude|In summary|Taken together)\b/,
+  // Underlag för risk för bias (GRADE): blindning och analyspopulation
+  masking:
+    /\b(?:open-label|double-blind(?:ed)?|single-blind(?:ed)?|unblinded|nonblinded|non-blinded|masked|masking|blinded independent central review|placebo-controlled)\b/i,
+  analysis:
+    /\b(?:intention-to-treat|intent-to-treat|per-protocol|modified intention|full analysis set|safety (?:population|set))\b/i,
 };
 
 /** Hur många meningar efter träffen som hör till stycket (begränsningar är ofta flera). */
@@ -1268,6 +1275,12 @@ const PASSAGE_SPAN: Partial<Record<PassageKind, number>> = { limitations: 4, con
  * ("primary end point was", "limitations"). Referenslistan läses inte.
  * Abstractet (sidan 1) används bara om inget hittas längre in.
  */
+/** Underrubrik som blivit en egen "mening": "Randomisation and masking" */
+const isHeadingLike = (s: string) => s.length < 45 && !/[.!?)]$/.test(s);
+/** Rad ur en referenslista som inte känts igen som sådan */
+const isReference = (s: string) =>
+  /\bet al\b[.,]/.test(s) && /\b(?:19|20)\d\d\s*[;:]\s*\d+|\bdoi\b|Abstract [A-Z]{1,3}\d/i.test(s);
+
 export function findPassages(pages: PdfPage[]): Passage[] {
   // Meningar i dokumentets ordning, med sida och avsnitt; slutar vid referenslistan
   const all: { page: number; text: string; section?: Section; para: number }[] = [];
@@ -1286,7 +1299,8 @@ export function findPassages(pages: PdfPage[]): Passage[] {
         const head = s.slice(1);
         if (p.page > 1 || /^introduction$/i.test(head)) section = sectionOf(head);
         para++;
-      } else all.push({ page: p.page, text: s, section, para });
+      } else if (!isHeadingLike(s) && !isReference(s))
+        all.push({ page: p.page, text: s, section, para });
     }
     if (stop) break;
   }
@@ -1301,6 +1315,8 @@ export function findPassages(pages: PdfPage[]): Passage[] {
     strengths: ["discussion"],
     limitations: ["discussion"],
     conclusion: ["discussion"],
+    masking: ["methods"],
+    analysis: ["methods"],
   };
   const out: Passage[] = [];
   const take = (kind: PassageKind, max: number) => {
@@ -1356,5 +1372,7 @@ export function findPassages(pages: PdfPage[]): Passage[] {
   take("strengths", 1);
   take("limitations", 1);
   take("conclusion", 1);
+  take("masking", 1);
+  take("analysis", 1);
   return out;
 }

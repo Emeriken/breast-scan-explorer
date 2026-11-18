@@ -25,6 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { AiSections, ArticleHeading, ArticleLinks } from "@/components/ArticleParts";
 import { ErrorState } from "@/components/ErrorState";
 import { ItemPrep, deckPrep, usePrep } from "@/components/ChecklistPrep";
+import { GradeCard, useGrade } from "@/components/GradeCard";
 import { JcPowerPoint } from "@/components/JcPowerPoint";
 import { PdfImport, type PdfDeckSource } from "@/components/PdfImport";
 import { DisclaimerFooter } from "@/components/Footer";
@@ -775,6 +776,9 @@ function PrepareView({
   const [passages, setPassages] = useState<Passage[] | null>(null);
   const prep = usePrep(article.url);
   const deck = useMemo(() => deckPrep(prep.state, passages), [prep.state, passages]);
+  // Förenklad GRADE och det primära effektmåttet ur PDF:en, som underlag
+  const [primary, setPrimary] = useState<string | null>(null);
+  const grade = useGrade(article);
 
   return (
     <div className="min-h-screen bg-background">
@@ -833,13 +837,19 @@ function PrepareView({
           </article>
 
           <div className="flex flex-col gap-4 print:mt-8">
-            <PdfImport article={article} onChange={onPdfChange} onPassages={setPassages} />
+            <PdfImport
+              article={article}
+              onChange={onPdfChange}
+              onPassages={setPassages}
+              onPrimary={setPrimary}
+            />
             <JcPowerPoint
               article={article}
               area={area}
               pdf={pdf.source}
               pdfSummary={pdf.summary}
               prep={deck}
+              grade={grade.grade}
             />
 
             <section className="rounded-md border border-border bg-card px-5 py-5 sm:px-6 print:rounded-none print:border-0 print:p-0">
@@ -963,6 +973,14 @@ function PrepareView({
                 ))}
               </div>
             </section>
+            <GradeCard
+              article={article}
+              passages={passages}
+              primary={primary}
+              grade={grade.grade}
+              setGrade={grade.setGrade}
+              setDomain={grade.setDomain}
+            />
           </div>
         </div>
       </main>

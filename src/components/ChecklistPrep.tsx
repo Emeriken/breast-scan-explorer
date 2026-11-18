@@ -94,7 +94,7 @@ export const PREP: {
   },
 ];
 
-const KIND_LABEL: Record<PassageKind, string> = {
+export const KIND_LABEL: Record<PassageKind, string> = {
   aim: "Syfte",
   design: "Design",
   population: "Population",
@@ -104,6 +104,8 @@ const KIND_LABEL: Record<PassageKind, string> = {
   strengths: "Styrkor enligt författarna",
   limitations: "Begränsningar enligt författarna",
   conclusion: "Författarnas slutsats",
+  masking: "Blindning",
+  analysis: "Analyspopulation",
 };
 
 export type PrepState = {

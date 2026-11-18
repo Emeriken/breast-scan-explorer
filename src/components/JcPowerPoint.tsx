@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { RUBRIC, roundScore } from "@/components/Score";
 import { Segmented } from "@/components/Segmented";
 import type { Article } from "@/lib/articles";
+import type { Grade } from "@/lib/grade";
 import { buildDeck, deckFileName, fetchAbstract, type DeckPrep } from "@/lib/jc-pptx";
 import { pmidFromUrl } from "@/lib/journals";
 import type { PdfDeckSource } from "@/components/PdfImport";
@@ -30,6 +31,7 @@ export function JcPowerPoint({
   pdf,
   pdfSummary,
   prep,
+  grade,
 }: {
   article: Article;
   area: string;
@@ -39,6 +41,8 @@ export function JcPowerPoint({
   pdfSummary?: string | null;
   /** Checklistans text och valda meningar ur PDF:en */
   prep?: DeckPrep;
+  /** Förenklad GRADE-bedömning */
+  grade?: Grade;
 }) {
   const [name, setName] = useState("");
   // Tomt tills presentatören väljer: datumet står på titelbilden och i filnamnet
@@ -91,6 +95,7 @@ export function JcPowerPoint({
         rubric: RUBRIC.find((r) => r.score === roundScore(article.relevance_score))?.text,
         pdf: pdfContent,
         prep,
+        grade,
       });
       const url = URL.createObjectURL(
         new Blob([bytes], {
