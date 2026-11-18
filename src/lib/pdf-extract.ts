@@ -1138,6 +1138,8 @@ export function tableHeader(page: PdfPage, box: Box): number | undefined {
   if (last < 0) return undefined;
   // Mitt i glappet till nästa rad
   return (rows[last].bottom + rows[last + 1].top) / 2;
+}
+
 // --- Stycken till checklistan ------------------------------------------------------
 
 export type PassageKind =

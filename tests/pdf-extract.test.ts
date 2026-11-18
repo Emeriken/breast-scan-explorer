@@ -799,6 +799,9 @@ describe("uppdelning med upprepat huvud", () => {
     // Delar om ungefär 267 rader under huvudet, inte 333 från bildens överkant
     expect(Math.abs(c1 - 467)).toBeLessThan(10);
     expect(Math.abs(c2 - 733)).toBeLessThan(10);
+  });
+});
+
 // --- Stycken till checklistan ----------------------------------------------------
 
 describe("stycken till checklistan", () => {
