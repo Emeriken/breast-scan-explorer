@@ -21,8 +21,33 @@ export type Line = {
   onDark?: boolean;
   bold?: boolean;
   size?: number;
+  /** Citat ur artikeln: kursivt och mörkgrått */
+  quote?: boolean;
 };
 type Value = string | Line[];
+
+/** Fält i checklistan där presentatören skriver egen text. */
+export type PrepField =
+  | "bakgrund"
+  | "fraga"
+  | "population"
+  | "primart"
+  | "sekundart"
+  | "sakerhet"
+  | "styrkor"
+  | "begransningar"
+  | "betydelse"
+  | "overforbarhet"
+  | "diskussion";
+
+/**
+ * Det presentatören förberett i checklistan: egen text per fält och de
+ * meningar ur artikelns PDF som ska med, ordagrant med sidnummer.
+ */
+export type DeckPrep = {
+  texts: Partial<Record<PrepField, string>>;
+  quotes: { kind: string; text: string; page: number }[];
+};
 
 export type AbstractPart = { label?: string; text: string };
 
@@ -39,6 +64,8 @@ export type DeckInput = {
   rubric?: string;
   /** Det presentatören valt ur artikelns PDF (läst lokalt i webbläsaren) */
   pdf?: DeckPdf;
+  /** Checklistans text och valda meningar */
+  prep?: DeckPrep;
 };
 
 /** Val ur artikelns PDF. Allt är bekräftat av presentatören. */
@@ -158,6 +185,13 @@ const TABLE: Record<Design, { head: string[]; rows: string[] }> = {
   ovrig: { head: ["Utfall", "Grupp A", "Grupp B", "Effekt (95 % KI)"], rows: ["", "", ""] },
 };
 
+/** Kortar ett citat vid ett helt ord och markerar utelämnandet. */
+function shortQuote(t: string, max: number): string {
+  if (t.length <= max) return t;
+  const cut = t.lastIndexOf(" ", max);
+  return `${t.slice(0, cut > max * 0.6 ? cut : max).trimEnd()} …`;
+}
+
 /** Titelns storlek efter längd, så att den får plats i mallens titelruta. */
 function titleSize(title: string): number {
   const n = title.length;
@@ -181,7 +215,36 @@ function swedishDate(iso: string): string {
 
 /** Allt som ska in i mallen, som markör → text. Ren funktion, testbar utan webbläsare. */
 export function deckContent(input: DeckInput): Record<string, Value> {
-  const { article: a, area, presenter, date, abstract, rubric, pdf } = input;
+  const { article: a, area, presenter, date, abstract, rubric, pdf, prep } = input;
+  // Presentatörens egen text: en rad per rad i fältet
+  const own = (field: PrepField, size?: number): Line[] =>
+    (prep?.texts[field] ?? "")
+      .split("\n")
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .map((text) => ({ text, ...(size ? { size } : {}) }));
+  // Valda meningar ur PDF:en: kortade på bilden, hela i anteckningarna
+  const quotes = (kind: string) => (prep?.quotes ?? []).filter((q) => q.kind === kind);
+  const quote = (kind: string, size: number, max = 220, count = 1): Line[] =>
+    quotes(kind)
+      .slice(0, count)
+      .map((q) => ({
+        text: `”${shortQuote(q.text, max)}” (s. ${q.page})`,
+        quote: true,
+        size,
+      }));
+  const fullQuotes = (...kinds: string[]): Line[] => {
+    const qs = kinds.flatMap(quotes);
+    return qs.length
+      ? [
+          { text: "" },
+          { text: "Ur artikelns PDF, ordagrant (valt i checklistan):" },
+          ...qs.map((q) => ({ text: `Sidan ${q.page}: "${q.text}"` })),
+        ]
+      : [];
+  };
+  // Fältets text, annars platshållaren
+  const orHint = (lines: Line[], text: string): Line[] => (lines.length ? lines : [hint(text)]);
   const trials =
     pdf && pdf.trials !== undefined
       ? (pdf.trials ?? undefined)
@@ -199,6 +262,26 @@ export function deckContent(input: DeckInput): Record<string, Value> {
   const pubDate = a.pub_date ? formatPubDate(a.pub_date) : "";
   const interventional = design === "rct" || design === "studie";
   const table = TABLE[design];
+
+  const strengths = (): Line[] => [
+    bold("Styrkor"),
+    ...orHint([...own("styrkor", 1200), ...quote("strengths", 900, 170)], "[Fyll i]"),
+  ];
+  // Författarnas egna begränsningar och presentatörens tillägg, åtskilda
+  const mine0 = own("begransningar").length > 0;
+  const limitations = (): Line[] => {
+    // Kort på bilden; hela stycket står i anteckningarna
+    const authors = quote("limitations", 900, mine0 ? 150 : 220);
+    const mine = own("begransningar", 1200);
+    if (!authors.length && !mine.length) return [bold("Begränsningar"), hint("[Fyll i]")];
+    return [
+      bold("Begränsningar"),
+      ...(authors.length ? [{ text: "Enligt författarna:", size: 1000 }, ...authors] : []),
+      ...(mine.length
+        ? [{ text: "Egna tillägg:", size: 1000 }, ...mine]
+        : [hint("[Egna tillägg: vad nämner inte författarna?]")]),
+    ];
+  };
 
   const c: Record<string, Value> = {
     TITEL: [{ text: a.title, size: titleSize(a.title) }],
@@ -228,14 +311,25 @@ export function deckContent(input: DeckInput): Record<string, Value> {
             hint("[Fyll i: vilken fråga besvarar den?]"),
           ]
         : [
-            hint("[Fyll i: vad visste vi före studien, och vilken kunskapslucka fyller den?]"),
-            hint(
-              "[Fyll i: frågeställningen, gärna som PICO: population, intervention, jämförelse, utfall]",
+            ...orHint(
+              own("bakgrund", 1600),
+              "[Fyll i: vad visste vi före studien, och vilken kunskapslucka fyller den?]",
             ),
+            ...(own("fraga", 1600).length || quotes("aim").length
+              ? [...own("fraga", 1600), ...quote("aim", 1300, 300)]
+              : [
+                  hint(
+                    "[Fyll i: frågeställningen, gärna som PICO: population, intervention, jämförelse, utfall]",
+                  ),
+                ]),
           ],
 
     S3_RUBRIK: design === "translationell" ? "Modell och metod" : "Design och population",
-    S3_K1: [bold("Publikationstyp enligt PubMed"), ...shownTypes.map((t) => ({ text: t }))],
+    S3_K1: [
+      bold("Publikationstyp enligt PubMed"),
+      ...shownTypes.map((t) => ({ text: t })),
+      ...quote("design", 1000, 200),
+    ],
     S3_K2:
       design === "metaanalys"
         ? [bold("Ingående studier"), hint("[Antal studier och patienter, sökperiod]")]
@@ -243,11 +337,27 @@ export function deckContent(input: DeckInput): Record<string, Value> {
           ? [bold("Modell"), hint("[Cellinjer, djurmodell eller patientmaterial]")]
           : design === "oversikt"
             ? [bold("Underlag"), hint("[Vilka studier eller riktlinjer bygger den på?]")]
-            : [bold("Population"), hint("[Antal, inklusionskriterier, uppföljningstid]")],
+            : [
+                bold("Population"),
+                ...orHint(
+                  [
+                    ...own("population", 1200),
+                    ...quote("population", 900, 140),
+                    ...quote("followUp", 900, 120),
+                  ],
+                  "[Antal, inklusionskriterier, uppföljningstid]",
+                ),
+              ],
     S3_K3:
       design === "translationell"
         ? [bold("Metod"), hint("[Analyser och viktigaste mått]")]
-        : [bold("Effektmått"), hint("[Primärt och viktiga sekundära effektmått]")],
+        : [
+            bold("Effektmått"),
+            ...orHint(
+              [...quote("primaryEndpoint", 1000, 200), ...own("primart", 1200)],
+              "[Primärt och viktiga sekundära effektmått]",
+            ),
+          ],
 
     S4_RUBRIK: "Resultat",
 
@@ -266,27 +376,46 @@ export function deckContent(input: DeckInput): Record<string, Value> {
       ? "Säkerhet, styrkor och begränsningar"
       : "Styrkor, begränsningar och överförbarhet",
     S6_K1: interventional
-      ? [bold("Säkerhet"), hint("[Biverkningar, avbrott, livskvalitet]")]
-      : [bold("Styrkor"), hint("[Fyll i]")],
-    S6_K2: interventional
-      ? [bold("Styrkor"), hint("[Fyll i]")]
-      : [bold("Begränsningar"), hint("[Fyll i]")],
+      ? [
+          bold("Säkerhet"),
+          ...orHint(
+            [...own("sakerhet", 1200), ...quote("safety", 900, 170)],
+            "[Biverkningar, avbrott, livskvalitet]",
+          ),
+        ]
+      : strengths(),
+    S6_K2: interventional ? strengths() : limitations(),
     S6_K3: interventional
-      ? [bold("Begränsningar"), hint("[Fyll i]")]
-      : [bold("Överförbarhet"), hint("[Gäller resultatet våra patienter?]")],
+      ? limitations()
+      : [
+          bold("Överförbarhet"),
+          ...orHint(own("overforbarhet", 1200), "[Gäller resultatet våra patienter?]"),
+        ],
 
     S7_RUBRIK: "Betydelse för våra patienter",
     S7_TEXT: [
-      hint("[Fyll i: vilka av våra patienter berörs?]"),
-      hint("[Fyll i: ändrar det vår praxis nu, senare eller inte alls?]"),
-      hint("[Fyll i: slutsatsen i en mening]"),
+      ...(own("betydelse").length
+        ? own("betydelse")
+        : [
+            hint("[Fyll i: vilka av våra patienter berörs?]"),
+            hint("[Fyll i: ändrar det vår praxis nu, senare eller inte alls?]"),
+            hint("[Fyll i: slutsatsen i en mening]"),
+          ]),
+      ...(interventional && own("overforbarhet").length
+        ? [bold("Överförbarhet"), ...own("overforbarhet")]
+        : []),
+      ...(quotes("conclusion").length
+        ? [bold("Författarnas slutsats"), ...quote("conclusion", 1200, 260)]
+        : []),
     ],
 
     S8_RUBRIK: "Diskussion",
-    S8_TEXT: [
-      { text: "[Diskussionsfråga 1]", hint: true, onDark: true },
-      { text: "[Diskussionsfråga 2]", hint: true, onDark: true },
-    ],
+    S8_TEXT: own("diskussion").length
+      ? own("diskussion").map((l) => ({ ...l, onDark: true }))
+      : [
+          { text: "[Diskussionsfråga 1]", hint: true, onDark: true },
+          { text: "[Diskussionsfråga 2]", hint: true, onDark: true },
+        ],
   };
 
   table.head.forEach((h, i) => (c[`T_0_${i}`] = h));
@@ -320,6 +449,8 @@ export function deckContent(input: DeckInput): Record<string, Value> {
       : [{ text: "" }, { text: "Abstractet kunde inte hämtas. Läs det i PubMed." }]),
   ];
   c.NOTES_2 = [
+    ...fullQuotes("aim").slice(1),
+    ...(quotes("aim").length ? [{ text: "" }] : []),
     ...(a.why_relevant
       ? [{ text: `AI-motivering: ${a.why_relevant}` }, { text: ai }, { text: "" }]
       : []),
@@ -332,6 +463,7 @@ export function deckContent(input: DeckInput): Record<string, Value> {
     ...(trials?.studies.length
       ? [{ text: "" }, ...trialNoteLines(trials).map((text) => ({ text }))]
       : []),
+    ...fullQuotes("design", "population", "followUp", "primaryEndpoint"),
   ];
   c.NOTES_4 = [
     {
@@ -361,6 +493,13 @@ export function deckContent(input: DeckInput): Record<string, Value> {
           ]),
         ]
       : []),
+    ...(own("sekundart").length
+      ? [
+          { text: "" },
+          { text: "Sekundära effektmått och subgrupper (presentatörens anteckning):" },
+          ...own("sekundart"),
+        ]
+      : []),
   ];
   c.NOTES_5 = [{ text: "Visa hellre en figur än många siffror. Ange figurens källa på bilden." }];
   c.NOTES_6 = [
@@ -382,8 +521,12 @@ export function deckContent(input: DeckInput): Record<string, Value> {
     ...(pdf?.coi
       ? [{ text: "" }, { text: `Jäv, ur artikelns PDF (sidan ${pdf.coi.page}): ${pdf.coi.text}` }]
       : []),
+    ...fullQuotes("safety", "strengths", "limitations"),
   ];
-  c.NOTES_7 = [{ text: "Skilj mellan vad studien visar och din egen bedömning." }];
+  c.NOTES_7 = [
+    { text: "Skilj mellan vad studien visar och din egen bedömning." },
+    ...fullQuotes("conclusion"),
+  ];
   c.NOTES_8 = [{ text: "En eller två frågor räcker. Ställ dem öppet." }];
   return c;
 }
@@ -414,6 +557,12 @@ function runProps(base: string | undefined, line: Line): string {
   attrs.set("lang", "sv-SE");
   if (line.size) attrs.set("sz", String(line.size));
   if (line.bold) attrs.set("b", "1");
+  if (line.quote) {
+    attrs.set("i", "1");
+    inner =
+      '<a:solidFill><a:srgbClr val="595959"/></a:solidFill>' +
+      inner.replace(/<a:solidFill>[\s\S]*?<\/a:solidFill>/, "");
+  }
   if (line.hint) {
     attrs.set("i", "1");
     if (!line.onDark)

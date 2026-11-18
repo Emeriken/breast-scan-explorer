@@ -24,6 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AiSections, ArticleHeading, ArticleLinks } from "@/components/ArticleParts";
 import { ErrorState } from "@/components/ErrorState";
+import { ItemPrep, deckPrep, usePrep } from "@/components/ChecklistPrep";
 import { JcPowerPoint } from "@/components/JcPowerPoint";
 import { PdfImport, type PdfDeckSource } from "@/components/PdfImport";
 import { DisclaimerFooter } from "@/components/Footer";
@@ -35,6 +36,7 @@ import { TrialSection } from "@/components/TrialStudy";
 import { isrctnIds, looksLikeTrial } from "@/lib/trials";
 import { articlesQueryOptions, PRODUCT_NAME, type Article } from "@/lib/articles";
 import { pmidFromUrl, parsePubDateToMonth } from "@/lib/journals";
+import type { Passage } from "@/lib/pdf-extract";
 import { noticeFor } from "@/lib/notices";
 import { cn } from "@/lib/utils";
 
@@ -769,6 +771,10 @@ function PrepareView({
     [],
   );
   const hasTrial = hasRegisteredTrial || looksLikeTrial(article);
+  // Meningar ur PDF:en och checklistans egen text, till presentationen
+  const [passages, setPassages] = useState<Passage[] | null>(null);
+  const prep = usePrep(article.url);
+  const deck = useMemo(() => deckPrep(prep.state, passages), [prep.state, passages]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -827,8 +833,14 @@ function PrepareView({
           </article>
 
           <div className="flex flex-col gap-4 print:mt-8">
-            <PdfImport article={article} onChange={onPdfChange} />
-            <JcPowerPoint article={article} area={area} pdf={pdf.source} pdfSummary={pdf.summary} />
+            <PdfImport article={article} onChange={onPdfChange} onPassages={setPassages} />
+            <JcPowerPoint
+              article={article}
+              area={area}
+              pdf={pdf.source}
+              pdfSummary={pdf.summary}
+              prep={deck}
+            />
 
             <section className="rounded-md border border-border bg-card px-5 py-5 sm:px-6 print:rounded-none print:border-0 print:p-0">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -872,7 +884,8 @@ function PrepareView({
                 />
               </div>
               <p className="mt-2 text-xs text-muted-foreground print:hidden">
-                Bildnumren gäller PowerPoint-presentationen. Sparas i den här webbläsaren
+                Bildnumren gäller PowerPoint-presentationen. Det du fyller i under punkterna och de
+                meningar ur PDF:en du behåller hamnar på bilderna. Sparas i den här webbläsaren
                 {done > 0 && !undo && (
                   <>
                     {" · "}
@@ -934,6 +947,13 @@ function PrepareView({
                                 )}
                                 {aiText && <> · {aiText}</>}
                               </p>
+                              <ItemPrep
+                                index={i}
+                                passages={passages}
+                                state={prep.state}
+                                setText={prep.setText}
+                                toggleQuote={prep.toggleQuote}
+                              />
                             </div>
                           </li>
                         );

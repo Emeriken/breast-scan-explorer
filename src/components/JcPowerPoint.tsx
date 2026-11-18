@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { RUBRIC, roundScore } from "@/components/Score";
 import { Segmented } from "@/components/Segmented";
 import type { Article } from "@/lib/articles";
-import { buildDeck, deckFileName, fetchAbstract } from "@/lib/jc-pptx";
+import { buildDeck, deckFileName, fetchAbstract, type DeckPrep } from "@/lib/jc-pptx";
 import { pmidFromUrl } from "@/lib/journals";
 import type { PdfDeckSource } from "@/components/PdfImport";
 
@@ -29,6 +29,7 @@ export function JcPowerPoint({
   area,
   pdf,
   pdfSummary,
+  prep,
 }: {
   article: Article;
   area: string;
@@ -36,6 +37,8 @@ export function JcPowerPoint({
   pdf?: PdfDeckSource | null;
   /** Kort beskrivning av valen, t.ex. "2 effektmått · 1 figur" */
   pdfSummary?: string | null;
+  /** Checklistans text och valda meningar ur PDF:en */
+  prep?: DeckPrep;
 }) {
   const [name, setName] = useState("");
   // Tomt tills presentatören väljer: datumet står på titelbilden och i filnamnet
@@ -87,6 +90,7 @@ export function JcPowerPoint({
         abstract,
         rubric: RUBRIC.find((r) => r.score === roundScore(article.relevance_score))?.text,
         pdf: pdfContent,
+        prep,
       });
       const url = URL.createObjectURL(
         new Blob([bytes], {
@@ -118,9 +122,10 @@ export function JcPowerPoint({
     <section className="rounded-md border border-border bg-card px-5 py-5 sm:px-6 print:hidden">
       <h2 className="text-heading font-semibold tracking-[-0.01em]">PowerPoint för journal club</h2>
       <p className="mt-1 text-meta text-muted-foreground">
-        Åtta bilder på SÖS mall med artikelns uppgifter från PubMed och rutor att fylla i. Appen
-        skriver inga resultat eller slutsatser. AI-texterna och abstractet läggs i talarens
-        anteckningar, märkta med var de kommer ifrån.
+        Åtta bilder på SÖS mall med artikelns uppgifter från PubMed. Det du fyller i under
+        checklistans punkter och de meningar ur PDF:en du behåller hamnar på bilderna; det som
+        saknas står kvar som rutor att fylla i. Appen skriver inga resultat eller slutsatser.
+        AI-texterna och abstractet läggs i talarens anteckningar, märkta med var de kommer ifrån.
       </p>
       <div className="mt-4 flex flex-col gap-3">
         <Segmented label="Område" value={areaSel} options={AREAS} onChange={setAreaSel} />

@@ -10,6 +10,7 @@ import {
   findEffects,
   findNcts,
   findCuts,
+  findPassages,
   findSections,
   lines,
   pixelRows,
@@ -798,5 +799,85 @@ describe("uppdelning med upprepat huvud", () => {
     // Delar om ungefär 267 rader under huvudet, inte 333 från bildens överkant
     expect(Math.abs(c1 - 467)).toBeLessThan(10);
     expect(Math.abs(c2 - 733)).toBeLessThan(10);
+// --- Stycken till checklistan ----------------------------------------------------
+
+describe("stycken till checklistan", () => {
+  /** En sida med rader i en spalt; rubriker som egna korta rader. */
+  function doc(...pgs: string[][]): PdfPage[] {
+    return pgs.map((rows, n) => ({
+      page: n + 1,
+      width: 595,
+      height: 792,
+      items: rows.map((str, i) => ({
+        str,
+        x: 50,
+        y: 740 - i * 12,
+        w: str.length * 4.4,
+        h: 9,
+        eol: true,
+      })),
+    }));
+  }
+  const long = (s: string) => s.padEnd(80, " ") + " ";
+
+  test("rätt avsnitt före abstractet; rubrikrad klistras inte ihop med meningen", () => {
+    const pages = doc(
+      [
+        long("METHODS"),
+        long("The primary end point was overall survival in the abstract population here."),
+      ],
+      [
+        "Introduction",
+        long("Prior trials of this class were randomized and showed a benefit in other settings."),
+        long("Here, we report the final analysis of the TEST-1 trial in early breast cancer."),
+        "Methods",
+        "End Points",
+        long(
+          "The primary end point was invasive disease-free survival assessed by the investigators.",
+        ),
+        long(
+          "Patients were eligible if they had stage II or III disease and adequate organ function.",
+        ),
+        long(
+          "The detailed eligibility criteria have been reported previously in the protocol paper.",
+        ),
+      ],
+      [
+        "Discussion",
+        long(
+          "This study has several limitations. First, the trial was open label. Second, follow-up is short.",
+        ),
+        long("In conclusion, the combination improved outcomes in this population of patients."),
+        "References",
+        long("1. Some reference with limitations in the title that should never be read at all."),
+      ],
+    );
+    const ps = findPassages(pages);
+    const by = (k: string) => ps.filter((p) => p.kind === k);
+    expect(by("aim")[0].text.startsWith("Here, we report")).toBe(true);
+    expect(by("primaryEndpoint")[0].text.startsWith("The primary end point was invasive")).toBe(
+      true,
+    );
+    expect(by("primaryEndpoint")[0].page).toBe(2);
+    // Hänvisningen till tidigare publikation kommer efter den riktiga meningen
+    expect(by("population")[0].text.startsWith("Patients were eligible")).toBe(true);
+    expect(by("limitations")[0].text).toContain("Second, follow-up is short.");
+    expect(by("conclusion")[0].text.startsWith("In conclusion")).toBe(true);
+    expect(ps.some((p) => p.text.includes("Some reference"))).toBe(false);
+  });
+
+  test("begränsningar hos tidigare behandling räknas inte som studiens egna", () => {
+    const pages = doc(
+      [],
+      [
+        "Introduction",
+        long(
+          "These limitations underscore the need for optimized, de-escalated chemotherapy backbones.",
+        ),
+        "Discussion",
+        long("Our findings are consistent with earlier trials in the same setting and population."),
+      ],
+    );
+    expect(findPassages(pages).filter((p) => p.kind === "limitations")).toHaveLength(0);
   });
 });

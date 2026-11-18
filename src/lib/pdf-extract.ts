@@ -65,6 +65,8 @@ export type PdfFindings = {
   ncts: NctHit[];
   funding?: SectionHit;
   coi?: SectionHit;
+  /** Meningar till checklistan (syfte, population, begränsningar …), ordagrant */
+  passages: Passage[];
   /** true om PDF:en saknar textlager (inskannad) */
   noText: boolean;
 };
@@ -76,6 +78,7 @@ export function normalize(s: string): string {
   return s
     .replace(/(\d)\s*[·•]\s*(\d)/g, "$1.$2") // Lancet skriver 0·60
     .replace(/\b([PpNn]) 5 (?=\.?\d)/g, "$1 = ") // JCO:s typsnitt: "P 5 .004" är "P = .004"
+    .replace(/ ¼ (?=[\d.])/g, " = ") // CCR:s typsnitt: "n ¼ 83" är "n = 83"
     .replace(/([Pp]\s*)¼(\s*[.\d])/g, "$1=$2") // AACR:s typsnitt: "P ¼ 0.035"
     .replace(/[\u2212\u2013\u2014\u2010\u2011]/g, "-")
     .replace(/[\u00a0\u2009\u202f]/g, " ")
@@ -878,6 +881,7 @@ export function analyzePdf(pages: PdfPage[]): PdfFindings {
     captions: findCaptions(pages),
     ncts: findNcts(pages),
     ...findSections(pages),
+    passages: findPassages(pages),
     noText: chars < pages.length * 200,
   };
 }
@@ -1134,4 +1138,221 @@ export function tableHeader(page: PdfPage, box: Box): number | undefined {
   if (last < 0) return undefined;
   // Mitt i glappet till nästa rad
   return (rows[last].bottom + rows[last + 1].top) / 2;
+// --- Stycken till checklistan ------------------------------------------------------
+
+export type PassageKind =
+  | "aim"
+  | "design"
+  | "population"
+  | "primaryEndpoint"
+  | "followUp"
+  | "safety"
+  | "strengths"
+  | "limitations"
+  | "conclusion";
+
+/** En mening eller ett stycke ur PDF:en, ordagrant, med sidnummer. */
+export type Passage = { id: string; kind: PassageKind; page: number; text: string };
+
+/**
+ * Löptexten på en sida: utan sidhuvud, sidfot och text i figurer och
+ * tabeller (mindre stil). Samma avgränsning som för effektmåtten.
+ */
+function proseText(p: PdfPage): string {
+  const ls = lines(p);
+  const body = median(ls.filter((l) => l.text.trim().length > 40).map((l) => l.h)) || 9;
+  const colW = median(
+    ls
+      .filter((l) => l.text.trim().length > 40 && Math.abs(l.h - body) < 0.5)
+      .map((l) => l.x1 - l.x0),
+  );
+  return normalize(
+    ls
+      .filter(
+        (l) =>
+          l.h >= body * 0.88 &&
+          !(
+            (l.y > p.height * 0.93 || l.y < p.height * 0.06) &&
+            l.text.trim().length < 60 &&
+            !/[.)]$/.test(l.text.trim()) &&
+            !(Math.abs(l.h - body) < 0.5 && l.x1 - l.x0 > colW * 0.85)
+          ),
+      )
+      .map((l) => {
+        const t = l.text.replace(/\s+/g, " ").trim();
+        // Avsnittsrubrik: markeras, så att stycken kan sökas i rätt avsnitt
+        const sec = SECTION_HEAD.exec(t);
+        if (sec) return `${PARA}${SEC}${sec[1]}${PARA}`;
+        // Kort rad utan skiljetecken sist (underrubrik som "End Points"):
+        // eget stycke, så att den inte klistras ihop med meningen efter
+        if (
+          t.length < 60 &&
+          l.x1 - l.x0 < colW * 0.7 &&
+          /^[A-Z]/.test(t) &&
+          !t.includes(",") &&
+          t.split(" ").length <= 7 &&
+          !/[.,;:)\]%-]$/.test(t) &&
+          !/\b(?:the|of|and|or|to|in|with|a|an|were|was|is|are|for|by|at|on|as)$/i.test(t)
+        )
+          return `${PARA}${t}${PARA}`;
+        return t;
+      })
+      .join("\n"),
+  );
+}
+
+const PARA = "\u2029";
+/** Markör mellan stycken i meningslistan */
+const PARA_BREAK = "\u2028";
+const SEC = "\u0002";
+const SECTION_HEAD =
+  /^(?:\d+\.?\s*)?(Introduction|Background|Methods|Materials and Methods|Patients and Methods|Methods and Materials|Results|Discussion|Conclusions?)$/i;
+type Section = "intro" | "methods" | "results" | "discussion";
+const sectionOf = (h: string): Section =>
+  /intro|background/i.test(h)
+    ? "intro"
+    : /method/i.test(h)
+      ? "methods"
+      : /result/i.test(h)
+        ? "results"
+        : "discussion";
+
+/** Dela text i meningar; punkt efter förkortning ("Fig.", "vs.") delar inte. */
+function sentencesOf(text: string): string[] {
+  const out: string[] = [];
+  for (const para of text.split(PARA)) {
+    out.push(PARA_BREAK);
+    if (para.startsWith(SEC)) {
+      out.push(para);
+      continue;
+    }
+    let start = 0;
+    for (const m of para.matchAll(/[.!?](?=\s+[A-Z(])/g)) {
+      if (ABBREV.test(para.slice(0, m.index! + 1))) continue;
+      out.push(para.slice(start, m.index! + 1));
+      start = m.index! + 1;
+    }
+    out.push(para.slice(start));
+  }
+  return out
+    .map((s) => (s.startsWith(SEC) || s === PARA_BREAK ? s : s.replace(/\s+/g, " ").trim()))
+    .filter((s) => s.startsWith(SEC) || s === PARA_BREAK || s.length > 20);
+}
+
+const PASSAGE_RE: Record<PassageKind, RegExp> = {
+  aim: /\b(?:we|this (?:study|trial|analysis))\s+(?:aimed|sought|hypothesi[sz]ed|designed|investigated|evaluated|assessed)\b|\b(?:the )?(?:aim|objective|purpose|goal)s? of (?:this|the present|our|the current)\b|\bhere,? we (?:report|present|describe)\b|\bwe (?:report|present) (?:the )?(?:results|findings|primary|final|first)\b/i,
+  design:
+    /\b(?:randomi[sz]ed|open-label|double-blind|placebo-controlled|phase (?:[1-3]|I{1,3})|multicenter|multicentre|noninferiority|non-inferiority)\b[^.]*\b(?:trial|study)\b/i,
+  population:
+    /\b(?:were eligible|eligibility criteria|eligible patients|inclusion criteria|were enrolled|underwent randomi[sz]ation|were randomly assigned|were randomi[sz]ed)\b/i,
+  primaryEndpoint:
+    /\bprimary (?:efficacy )?(?:end ?point|endpoint|outcome)s?\b[^.]*\b(?:was|were|is|included|defined)\b/i,
+  followUp: /\bmedian (?:duration of )?follow-?up\b/i,
+  safety:
+    /\b(?:grade (?:3|≥\s?3|3 or (?:higher|greater|worse)|3-4|III)(?! disease)|serious adverse events?|treatment-related (?:adverse events?|deaths?))\b(?=.*(?:\d\s?%|\b\d+ of \d+\b|\(\d+(?:\.\d+)?\)))/i,
+  strengths: /\bstrengths?\b/i,
+  // Studiens egna begränsningar, inte "limitations" hos tidigare behandling
+  limitations:
+    /\b(?:(?:this|our|the present|the current) (?:study|trial|analysis|work)\b[^.]*\blimitations?|limitations? (?:of|to|in) (?:this|our|the present|the current)\b|(?:several|some|certain|potential|important|a few|other) limitations|(?:a|one|another|the main|a major|a key) limitation|limitations (?:include|warrant|should)|^Limitations\b)/i,
+  conclusion: /^(?:In conclusion|To conclude|In summary|Taken together)\b/,
+};
+
+/** Hur många meningar efter träffen som hör till stycket (begränsningar är ofta flera). */
+const PASSAGE_SPAN: Partial<Record<PassageKind, number>> = { limitations: 4, conclusion: 1 };
+
+/**
+ * Meningar ur PDF:en som checklistan kan föreslå, ordagrant med sidnummer.
+ * Ingen tolkning: en mening väljs bara för att den innehåller nyckelord
+ * ("primary end point was", "limitations"). Referenslistan läses inte.
+ * Abstractet (sidan 1) används bara om inget hittas längre in.
+ */
+export function findPassages(pages: PdfPage[]): Passage[] {
+  // Meningar i dokumentets ordning, med sida och avsnitt; slutar vid referenslistan
+  const all: { page: number; text: string; section?: Section; para: number }[] = [];
+  let section: Section | undefined;
+  let para = 0;
+  for (const p of pages) {
+    let text = proseText(p);
+    const refs = text.search(/\n(?:References|REFERENCES)(?:\n|$)/);
+    const stop = refs >= 0;
+    if (stop) text = text.slice(0, refs);
+    for (const s of sentencesOf(text)) {
+      if (s === PARA_BREAK) para++;
+      // Abstractets rubriker på sidan 1 räknas inte som avsnitt, men
+      // inledningen kan börja redan där
+      else if (s.startsWith(SEC)) {
+        const head = s.slice(1);
+        if (p.page > 1 || /^introduction$/i.test(head)) section = sectionOf(head);
+        para++;
+      } else all.push({ page: p.page, text: s, section, para });
+    }
+    if (stop) break;
+  }
+  // Var varje sorts stycke helst ska komma ifrån
+  const prefer: Record<PassageKind, Section[]> = {
+    aim: ["intro"],
+    design: ["methods"],
+    population: ["methods"],
+    primaryEndpoint: ["methods"],
+    followUp: ["results"],
+    safety: ["results"],
+    strengths: ["discussion"],
+    limitations: ["discussion"],
+    conclusion: ["discussion"],
+  };
+  const out: Passage[] = [];
+  const take = (kind: PassageKind, max: number) => {
+    const re = PASSAGE_RE[kind];
+    const hits = all.map((s, i) => ({ s, i })).filter(({ s }) => re.test(s.text));
+    // Rätt avsnitt först, sedan längre in i artikeln; abstractet bara som reserv
+    const inSection = hits.filter(({ s }) => s.section && prefer[kind].includes(s.section));
+    // Utanför rätt avsnitt: aldrig inledningen (bakgrund om andra studier),
+    // utom för syftet som står just där
+    const inner = hits.filter(({ s }) => s.page > 1 && (kind === "aim" || s.section !== "intro"));
+    const abstract = hits.filter(({ s }) => s.page === 1 && !s.section);
+    let tier = inSection.length
+      ? inSection
+      : inner.length
+        ? inner
+        : kind === "aim"
+          ? hits
+          : abstract;
+    // Hänvisningar ("described previously", "shown in the protocol") säger
+    // inget själva: de kommer sist
+    const pointer =
+      /\b(?:previously (?:been )?(?:described|reported|published)|(?:described|reported|published) (?:previously|elsewhere)|(?:shown|available|provided) in the (?:protocol|supplementary)|available at)\b/i;
+    tier = [
+      ...tier.filter(({ s }) => !pointer.test(s.text)),
+      ...tier.filter(({ s }) => pointer.test(s.text)),
+    ];
+    // Designen: meningar om den egna studien först, inte om tidigare studier
+    if (kind === "design") {
+      const own = tier.filter(({ s }) =>
+        /\b(?:this|our|the present|the current|we)\b/i.test(s.text),
+      );
+      if (own.length) tier = own;
+    }
+    let taken = 0;
+    for (const { s, i } of tier) {
+      if (taken >= max) break;
+      // En mening som redan föreslagits för något annat hoppas över
+      if (out.some((o) => o.text.startsWith(s.text))) continue;
+      const span = PASSAGE_SPAN[kind] ?? 0;
+      const tail = all.slice(i + 1, i + 1 + span).filter((t) => t.para === s.para);
+      let text = [s.text, ...tail.map((t) => t.text)].join(" ");
+      if (text.length > 700) text = cutWords(text, 700);
+      out.push({ id: `${kind}${out.length}`, kind, page: s.page, text });
+      taken++;
+    }
+  };
+  take("aim", 1);
+  take("design", 1);
+  take("population", 2);
+  take("primaryEndpoint", 1);
+  take("followUp", 1);
+  take("safety", 1);
+  take("strengths", 1);
+  take("limitations", 1);
+  take("conclusion", 1);
+  return out;
 }
