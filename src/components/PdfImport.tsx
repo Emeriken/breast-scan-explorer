@@ -18,8 +18,10 @@ import {
   cutRows,
   effectLabel,
   findCuts,
+  pixelRows,
   planSplit,
   suggestBox,
+  tableHeader,
   textSize,
   type SplitPlan,
   type Box,
@@ -35,6 +37,7 @@ import {
   renderPage,
   sliceRows,
   toPdfPoint,
+  withHeader,
   type PdfDoc,
 } from "@/lib/pdf-read";
 import { fetchTrial, type Trial } from "@/lib/trials";
@@ -53,10 +56,11 @@ const captionName = (c: Caption) => `${CAPTION_NAME[c.kind]} ${c.num}`;
 type Loaded = { doc: PdfDoc; pages: PdfPage[]; findings: PdfFindings; fileName: string };
 type FigurePick = { id: string; box: Box };
 
-/** Läsbarhetsplanen för en figur, om den har text att mäta. */
-function splitPlan(page: PdfPage, box: Box): SplitPlan | undefined {
+/** Läsbarhetsplanen för en figur, om den har text att mäta. En tabells huvud upprepas på varje del. */
+function splitPlan(page: PdfPage, box: Box, kind: Caption["kind"]): SplitPlan | undefined {
   const pt = textSize(page, box);
-  return pt ? planSplit(box, pt, FIGURE_AREA_IN) : undefined;
+  const head = kind === "table" ? (tableHeader(page, box) ?? 0) : 0;
+  return pt ? planSplit(box, pt, FIGURE_AREA_IN, head < box.h * 0.4 ? head : 0) : undefined;
 }
 
 /** Det som behövs för att bygga presentationen, eller null utan PDF. */
@@ -186,20 +190,31 @@ export function PdfImport({
             const canvas = await renderPage(loaded.doc, cap.page, { scale: 3, box });
             // För liten text: dela uppifrån och ned i tomrummen mellan rader
             // eller paneler. Går det inte att dela rent står figuren hel.
-            const plan = whole[cap.id] ? undefined : splitPlan(loaded.pages[cap.page - 1], box);
+            const plan = whole[cap.id]
+              ? undefined
+              : splitPlan(loaded.pages[cap.page - 1], box, cap.kind);
             let pieces = [canvas];
             if (plan && plan.parts > 1) {
               const ink = inkPerRow(canvas);
               const page = loaded.pages[cap.page - 1];
+              const scale = canvas.height / box.h;
+              // Tabell: huvudet upprepas överst på varje följande del
+              const head = cap.kind === "table" ? tableHeader(page, box) : undefined;
+              const headEnd =
+                head !== undefined && head < box.h * 0.4 ? Math.round(head * scale) : 0;
               const opts = {
                 tolerance: canvas.width * 0.02,
-                allowed: cutRows(page, box, canvas.height / box.h),
+                allowed: cutRows(page, box, scale),
+                rows: pixelRows(page, box, scale),
+                start: headEnd,
               };
               for (let k = plan.parts; k > 1; k--) {
                 // Utan text att gå efter: bara helt tomma rader
-                const cuts = findCuts(ink, k, opts.allowed ? opts : {});
+                const cuts = findCuts(ink, k, opts.allowed ? opts : { start: headEnd });
                 if (cuts) {
                   pieces = sliceRows(canvas, cuts);
+                  if (headEnd > 0 && headEnd < cuts[0])
+                    pieces = pieces.map((p, i) => (i === 0 ? p : withHeader(canvas, headEnd, p)));
                   break;
                 }
               }
@@ -657,7 +672,7 @@ function FiguresTab({
                 </p>
                 {i >= 0 && boxes[c.id] && (
                   <Readability
-                    plan={splitPlan(pages[c.page - 1], boxes[c.id])}
+                    plan={splitPlan(pages[c.page - 1], boxes[c.id], c.kind)}
                     whole={Boolean(whole[c.id])}
                     setWhole={(on) => setWhole(c.id, on)}
                   />
